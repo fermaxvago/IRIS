@@ -1,0 +1,20 @@
+"""Minimal contract for capabilities known by IRIS."""
+
+from typing import Protocol, TypeVar, runtime_checkable
+
+SkillInputT = TypeVar("SkillInputT", contravariant=True)
+SkillOutputT = TypeVar("SkillOutputT", covariant=True)
+
+
+@runtime_checkable
+class Skill(Protocol[SkillInputT, SkillOutputT]):
+    """A named capability or procedure IRIS knows how to perform."""
+
+    @property
+    def name(self) -> str:
+        """Return the stable skill name."""
+        ...
+
+    def invoke(self, skill_input: SkillInputT) -> SkillOutputT:
+        """Perform the capability for a validated input."""
+        ...

@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -208,6 +210,15 @@ tempCodeRunnerFile.py
 
 # PyPI configuration file
 .pypirc
+
+# Secrets and local credentials
+secrets/
+credentials*.json
+service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Marimo
 marimo/_static/
