@@ -8,7 +8,7 @@ ActionOutputT = TypeVar("ActionOutputT", covariant=True)
 
 @runtime_checkable
 class Action(Protocol[ActionInputT, ActionOutputT]):
-    """A named, concrete operation against the surrounding environment."""
+    """A concrete operation against the environment, usable by future tools."""
 
     @property
     def name(self) -> str:

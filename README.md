@@ -14,7 +14,10 @@ IRIS 0.1 currently provides:
   Python version, device name, and time;
 - typed `Request` and `RouteDecision` models;
 - deterministic routing for the current terminal commands;
-- a separate command-dispatch boundary that executes routing decisions;
+- a separate command-dispatch boundary that coordinates routing decisions;
+- an explicit registry and runtime for executable capabilities;
+- a structured capability result model for inspectable success and failure;
+- `system.status` as the first registered technical tool;
 - typed architectural contracts for future skills, actions, and memory;
 - automated tests for the existing behavior and contracts.
 
@@ -92,23 +95,41 @@ pytest
 
 ## Module direction
 
-The current request path is:
+The current request path for `estado` is:
 
 ```text
 Raw terminal input → Request → DeterministicRouter → RouteDecision
-                   → CommandDispatcher → CLI output
+                   → CommandDispatcher → CapabilityRuntime
+                   → system.status tool → CapabilityResult → CLI output
 ```
 
 The Router only decides a target and records a reason. It does not execute
-system information, actions, skills, or other effects. `CommandDispatcher` is
-the minimal execution boundary for the commands that exist today; it is not an
-Action Runtime.
+system information, actions, skills, or other effects. `CommandDispatcher`
+handles the interface-only `ayuda`, `salir`, and unknown-command responses;
+for executable capabilities it delegates to `CapabilityRuntime`. It does not
+implement `system.status` itself.
+
+Capabilities are registered explicitly in process. There is no plugin loading,
+filesystem discovery, or dynamic import mechanism. The registry rejects
+duplicate identifiers and unknown lookups. The runtime accepts explicit input,
+locates the selected capability, and returns a structured `CapabilityResult`.
+Expected operational failures are represented by failed results; unexpected
+programming exceptions remain visible.
+
+In the current vocabulary, a **Tool** is a directly invocable technical
+capability. A **Skill** is a higher-level procedure that may compose tools in a
+future subsystem. An **Action** is a concrete operation against the environment
+that a tool may use. WP003 implements only the capability/tool runtime; it does
+not add skill orchestration, an Action Runtime, permissions, or plugins.
 
 The modules below define the current foundation and future boundaries:
 
 - `iris.core`: portable core behavior, `Request`, and system information;
 - `iris.router`: routing contracts, decision models, and deterministic rules;
-- `iris.dispatch`: execution boundary for current routed CLI commands;
+- `iris.dispatch`: coordination boundary between routes, CLI behavior, and the
+  capability runtime;
+- `iris.capabilities`: executable capability identity, contracts, registry,
+  runtime, structured results, and built-in tool composition;
 - `iris.skills`: `Skill` contract for named capabilities or procedures;
 - `iris.actions`: `Action` contract for concrete environment operations;
 - `iris.memory`: model-independent `Memory` storage contract owned by IRIS.
