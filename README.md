@@ -12,7 +12,10 @@ IRIS 0.1 currently provides:
 - `estado`, `ayuda`, and `salir` commands;
 - best-effort host information for CPU, memory, disk, battery, operating system,
   Python version, device name, and time;
-- typed architectural contracts for future routing, skills, actions, and memory;
+- typed `Request` and `RouteDecision` models;
+- deterministic routing for the current terminal commands;
+- a separate command-dispatch boundary that executes routing decisions;
+- typed architectural contracts for future skills, actions, and memory;
 - automated tests for the existing behavior and contracts.
 
 IRIS does **not** currently include an LLM, agent loop, autonomous planning,
@@ -89,11 +92,23 @@ pytest
 
 ## Module direction
 
-The packages below currently define boundaries, not full subsystems:
+The current request path is:
 
-- `iris.core`: portable core behavior and system information;
-- `iris.router`: `Router` contract for choosing how to handle an interpreted
-  request;
+```text
+Raw terminal input → Request → DeterministicRouter → RouteDecision
+                   → CommandDispatcher → CLI output
+```
+
+The Router only decides a target and records a reason. It does not execute
+system information, actions, skills, or other effects. `CommandDispatcher` is
+the minimal execution boundary for the commands that exist today; it is not an
+Action Runtime.
+
+The modules below define the current foundation and future boundaries:
+
+- `iris.core`: portable core behavior, `Request`, and system information;
+- `iris.router`: routing contracts, decision models, and deterministic rules;
+- `iris.dispatch`: execution boundary for current routed CLI commands;
 - `iris.skills`: `Skill` contract for named capabilities or procedures;
 - `iris.actions`: `Action` contract for concrete environment operations;
 - `iris.memory`: model-independent `Memory` storage contract owned by IRIS.
