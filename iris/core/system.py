@@ -9,7 +9,7 @@ import sys
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import PureWindowsPath
-from typing import TypeVar, TypedDict
+from typing import TypedDict, TypeVar
 
 import psutil
 
