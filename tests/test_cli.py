@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import iris.__main__ as cli
+from iris.capabilities import (
+    CapabilityRegistry,
+    CapabilityRuntime,
+    SystemStatusTool,
+)
 from iris.core import system
 from iris.core.request import Request
 from iris.dispatch import CommandDispatcher
@@ -12,9 +17,18 @@ def _input_sequence(*commands: str):
     return lambda prompt: next(command_iterator)
 
 
+def _status_dispatcher(provider, formatter=None) -> CommandDispatcher:
+    tool = SystemStatusTool(
+        system_info_provider=provider,
+        **({} if formatter is None else {"system_info_formatter": formatter}),
+    )
+    runtime = CapabilityRuntime(CapabilityRegistry([tool]))
+    return CommandDispatcher(capability_runtime=runtime)
+
+
 def test_cli_supports_current_commands() -> None:
-    dispatcher = CommandDispatcher(
-        system_info_provider=lambda: {
+    dispatcher = _status_dispatcher(
+        lambda: {
             "device_name": "Test-PC",
             "operating_system": "Windows",
             "operating_system_version": "test",
@@ -30,7 +44,7 @@ def test_cli_supports_current_commands() -> None:
             "battery_percent": 80.0,
             "plugged_in": True,
             "timestamp": "2026-09-19T12:00:00",
-        },
+        }
     )
     output: list[str] = []
 
@@ -56,9 +70,9 @@ def test_cli_routes_status_as_a_request_before_dispatch() -> None:
             routed_requests.append(request)
             return deterministic_router.route(request)
 
-    dispatcher = CommandDispatcher(
-        system_info_provider=lambda: {},
-        system_info_formatter=lambda info: "system snapshot",
+    dispatcher = _status_dispatcher(
+        dict,
+        lambda info: "system snapshot",
     )
     output: list[str] = []
 

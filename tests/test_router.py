@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+from iris.capabilities import (
+    CapabilityExecutor,
+    CapabilityInput,
+    CapabilityResult,
+)
 from iris.core import Request
 from iris.dispatch import CommandDispatcher, Dispatcher
 from iris.router import DeterministicRouter, RouteDecision, RouteTarget
@@ -58,27 +63,59 @@ def test_router_does_not_execute_system_status(monkeypatch) -> None:
 
 
 def test_dispatch_occurs_only_after_routing_decision() -> None:
-    provider_calls = 0
+    runtime_calls: list[tuple[str, CapabilityInput]] = []
 
-    def provide_system_info():
-        nonlocal provider_calls
-        provider_calls += 1
-        return {}
+    class RecordingRuntime:
+        def execute(
+            self,
+            capability_id: str,
+            capability_input: CapabilityInput,
+        ) -> CapabilityResult:
+            runtime_calls.append((capability_id, capability_input))
+            return CapabilityResult.succeeded(
+                capability_id,
+                output="formatted status",
+            )
 
     router = DeterministicRouter()
     dispatcher = CommandDispatcher(
-        system_info_provider=provide_system_info,
-        system_info_formatter=lambda info: "formatted status",
+        capability_runtime=RecordingRuntime(),
     )
     request = Request(content="estado", source="test")
 
     decision = router.route(request)
 
-    assert provider_calls == 0
+    assert runtime_calls == []
     result = dispatcher.dispatch(request, decision)
-    assert provider_calls == 1
+    assert len(runtime_calls) == 1
+    capability_id, capability_input = runtime_calls[0]
+    assert capability_id == "system.status"
+    assert capability_input.metadata["source"] == "test"
     assert result.output == "formatted status"
     assert isinstance(dispatcher, Dispatcher)
+    assert isinstance(RecordingRuntime(), CapabilityExecutor)
+
+
+def test_dispatcher_exposes_expected_capability_failure() -> None:
+    class FailingRuntime:
+        def execute(
+            self,
+            capability_id: str,
+            capability_input: CapabilityInput,
+        ) -> CapabilityResult:
+            return CapabilityResult.failed(
+                capability_id,
+                diagnostic="system status temporarily unavailable",
+            )
+
+    request = Request(content="estado", source="test")
+    decision = DeterministicRouter().route(request)
+
+    result = CommandDispatcher(capability_runtime=FailingRuntime()).dispatch(
+        request, decision
+    )
+
+    assert result.output == "system status temporarily unavailable"
 
 
 def test_route_decision_is_explicit_and_read_only() -> None:

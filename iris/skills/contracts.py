@@ -8,7 +8,7 @@ SkillOutputT = TypeVar("SkillOutputT", covariant=True)
 
 @runtime_checkable
 class Skill(Protocol[SkillInputT, SkillOutputT]):
-    """A named capability or procedure IRIS knows how to perform."""
+    """A higher-level procedure that may compose tools in a future runtime."""
 
     @property
     def name(self) -> str:

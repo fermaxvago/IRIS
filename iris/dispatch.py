@@ -1,17 +1,17 @@
-"""Minimal execution boundary for decisions made by the IRIS Router."""
+"""Dispatch routing decisions to interface handling or capability execution."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from iris.capabilities import (
+    CapabilityExecutor,
+    CapabilityInput,
+    create_default_runtime,
+)
 from iris.core.request import Request
-from iris.core.system import SystemInfo, format_system_info, get_system_info
 from iris.router.models import RouteDecision, RouteTarget
-
-SystemInfoProvider = Callable[[], SystemInfo]
-SystemInfoFormatter = Callable[[SystemInfo], str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,16 +36,14 @@ class Dispatcher(Protocol):
 
 
 class CommandDispatcher:
-    """Execute the small set of routed commands supported by the current CLI."""
+    """Coordinate routed commands without implementing capabilities."""
 
     def __init__(
         self,
         *,
-        system_info_provider: SystemInfoProvider = get_system_info,
-        system_info_formatter: SystemInfoFormatter = format_system_info,
+        capability_runtime: CapabilityExecutor | None = None,
     ) -> None:
-        self._system_info_provider = system_info_provider
-        self._system_info_formatter = system_info_formatter
+        self._capability_runtime = capability_runtime or create_default_runtime()
 
     def dispatch(
         self,
@@ -54,10 +52,6 @@ class CommandDispatcher:
     ) -> DispatchResult:
         """Handle a prior routing decision outside the Router."""
 
-        if decision.target is RouteTarget.SYSTEM_STATUS:
-            info = self._system_info_provider()
-            return DispatchResult(self._system_info_formatter(info))
-
         if decision.target is RouteTarget.CLI_HELP:
             return DispatchResult("Comandos disponibles: estado, ayuda, salir")
 
@@ -65,8 +59,24 @@ class CommandDispatcher:
             return DispatchResult("IRIS apagándose.", exit_requested=True)
 
         if decision.target is RouteTarget.UNKNOWN:
-            return DispatchResult(
-                "Todavía no sé hacer eso, pero lo voy a aprender."
-            )
+            return DispatchResult("Todavía no sé hacer eso, pero lo voy a aprender.")
 
-        raise ValueError(f"unsupported route target: {decision.target}")
+        capability_input = CapabilityInput(
+            payload={"content": _request.content},
+            metadata={
+                "request_id": _request.request_id,
+                "source": _request.source,
+            },
+        )
+        capability_result = self._capability_runtime.execute(
+            decision.target.value,
+            capability_input,
+        )
+
+        if not capability_result.success:
+            if capability_result.diagnostic is None:
+                raise ValueError("failed capability result lacks a diagnostic")
+            return DispatchResult(capability_result.diagnostic)
+        if not isinstance(capability_result.output, str):
+            raise TypeError("CLI capabilities must return a string output")
+        return DispatchResult(capability_result.output)
