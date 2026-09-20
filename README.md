@@ -18,11 +18,15 @@ IRIS 0.1 currently provides:
 - an explicit registry and runtime for executable capabilities;
 - a structured capability result model for inspectable success and failure;
 - `system.status` as the first registered technical tool;
+- provider-independent contracts, models, registry, and runtime for future
+  generative intelligence;
 - typed architectural contracts for future skills, actions, and memory;
 - automated tests for the existing behavior and contracts.
 
-IRIS does **not** currently include an LLM, agent loop, autonomous planning,
-semantic memory, provider integration, voice, vision, or complex system actions.
+IRIS does **not** currently include a connected LLM or inference backend, agent
+loop, autonomous planning, semantic memory, voice, vision, or complex system
+actions. The Intelligence subsystem is an execution boundary, not generative
+intelligence by itself.
 
 ## Platform and product direction
 
@@ -34,7 +38,8 @@ support is not claimed.
 The long-term direction is **local-first, cloud-augmented**. Future local and
 cloud models will be interchangeable resources used by IRIS; identity, context,
 memory, routing, permissions, and state belong conceptually to IRIS itself.
-Those systems have not been implemented yet.
+IRIS is not a model. Models and their providers are resources behind an IRIS-
+owned boundary. No real local or cloud provider is connected yet.
 
 ## Requirements
 
@@ -116,6 +121,29 @@ locates the selected capability, and returns a structured `CapabilityResult`.
 Expected operational failures are represented by failed results; unexpected
 programming exceptions remain visible.
 
+The separate Intelligence path established in WP004 is:
+
+```text
+IntelligenceRequest → IntelligenceRuntime → ProviderRegistry
+                    → IntelligenceProvider → IntelligenceResult
+```
+
+`IntelligenceRequest` carries text, an explicitly requested model identifier,
+correlation identity, and extensible metadata. The runtime receives an explicit
+provider identifier, verifies that provider/model pairing, performs inference
+through a structural provider contract, and validates the returned identity.
+It does not choose a provider or model, fall back automatically, call tools, or
+participate in the CLI request path. Providers are registered explicitly per
+registry instance; there is no global registry or discovery mechanism.
+Intelligence providers are not Tools, and `IntelligenceRuntime` does not execute
+capabilities; orchestration between those subsystems remains future work.
+
+WP004 ships no real or reference production provider. Future local and cloud
+backends can implement the same boundary without making their HTTP protocols,
+SDK types, credentials, pricing, or process model part of the IRIS core.
+Expected provider failures use a structured failed `IntelligenceResult`;
+unexpected programming errors and contract violations remain visible.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -130,6 +158,8 @@ The modules below define the current foundation and future boundaries:
   capability runtime;
 - `iris.capabilities`: executable capability identity, contracts, registry,
   runtime, structured results, and built-in tool composition;
+- `iris.intelligence`: provider-independent inference requests, model identity,
+  provider contracts, explicit registry, runtime, and structured results;
 - `iris.skills`: `Skill` contract for named capabilities or procedures;
 - `iris.actions`: `Action` contract for concrete environment operations;
 - `iris.memory`: model-independent `Memory` storage contract owned by IRIS.
@@ -139,8 +169,8 @@ without requiring inheritance from framework-specific base classes.
 
 ## Configuration and secrets
 
-IRIS has no runtime secrets or provider configuration today. Future secrets must
-remain outside version control, supplied through the environment or ignored
-local files. Common `.env`, credential, certificate, and key files are excluded
-by `.gitignore`; a sanitized `.env.example` may be committed when configuration
-is introduced.
+IRIS has no runtime secrets or real provider configuration today. Future
+provider credentials must remain outside version control, supplied through the
+environment or ignored local files. Common `.env`, credential, certificate, and
+key files are excluded by `.gitignore`; a sanitized `.env.example` may be
+committed when configuration is introduced.
