@@ -42,9 +42,10 @@ class ModelLocation(StrEnum):
 
 
 class ModelCapability(StrEnum):
-    """Model capabilities represented by the current text-only boundary."""
+    """Demonstrable technical capabilities exposed by model descriptors."""
 
     TEXT_GENERATION = "text_generation"
+    EMBEDDING = "embedding"
 
 
 @dataclass(frozen=True, slots=True)

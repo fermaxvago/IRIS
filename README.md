@@ -22,13 +22,18 @@ IRIS 0.1 currently provides:
   generative intelligence;
 - an optional Ollama provider for explicit local model discovery and text
   inference through that Intelligence boundary;
+- typed intelligence needs, routable resources, hard-constraint candidate
+  resolution, and a deterministic replaceable routing policy;
+- structured `EXACT`, `DEGRADED`, and `UNSATISFIED` intelligence routes;
 - typed architectural contracts for future skills, actions, and memory;
 - automated tests for the existing behavior and contracts.
 
 IRIS does **not** bundle a model or connect one automatically. It also does not
-include a Brain Router, fallback, agent loop, autonomous planning, semantic
-memory, voice, vision, or complex system actions. Ollama is an optional,
-replaceable backend; it is not IRIS or IRIS's identity.
+include an Orchestrator, fallback after inference failure, agent loop, autonomous
+planning, semantic memory, voice, vision, or complex system actions. Ollama is
+an optional, replaceable backend; it is not IRIS or IRIS's identity. The
+intelligence router is deterministic and specialized; it is not an LLM-based
+Brain Router.
 
 ## Platform and product direction
 
@@ -187,6 +192,49 @@ registry instance; there is no global registry or discovery mechanism.
 Intelligence providers are not Tools, and `IntelligenceRuntime` does not execute
 capabilities; orchestration between those subsystems remains future work.
 
+WP006 adds a selection layer above that runtime:
+
+```text
+IntelligenceNeed + IntelligenceResource values
+    → CandidateResolver (hard requirements only)
+    → RoutingPolicy (soft preferences only)
+    → IntelligenceRoute
+    → caller constructs IntelligenceRequest
+    → IntelligenceRuntime
+```
+
+An `IntelligenceNeed` describes one cognitive need rather than an entire user
+request. Its requirements contain demonstrable model capabilities and an
+optional execution-location constraint. Its ordered preferences use separately
+declared model affinities such as reasoning, code, fast response, or resource
+efficiency. Affinities are routing evidence supplied by configuration; they are
+not inferred from provider/model names and are not represented as technical
+capabilities. The current capability vocabulary can describe text generation
+and embedding, but no embedding provider or embedding runtime is implemented.
+
+`CandidateResolver` removes unavailable resources and those that violate a
+required capability or location. It never selects the preferred candidate.
+`DeterministicRoutingPolicy` runs only over this valid candidate set, prioritizes
+ordered affinity matches, and resolves ties by stable provider/model identity.
+The same need, resources, and policy therefore produce the same route regardless
+of input order.
+
+An `EXACT` route satisfies every requirement and preference. `DEGRADED` still
+satisfies every hard requirement but records unmet preferences. `UNSATISFIED`
+selects no resource because no candidate satisfies all requirements. A
+preference can never authorize a forbidden resource, and the router does not
+silently fall back from local to cloud. Provider failure during inference is an
+execution result, not a routing outcome; retry and fallback policy remain future
+orchestration concerns.
+
+Locality is represented only as execution location. It does not assert trust,
+privacy, authorization, or data sensitivity. Those are future security and
+resource-management boundaries. The router also does not decide between a
+model, tool, action, or memory; a future Orchestrator will create individual
+`IntelligenceNeed` values when intelligence is appropriate. Multi-resource
+plans, adaptive/learned routing, benchmarks, and operational telemetry are not
+implemented.
+
 WP005 implements `OllamaProvider` behind this boundary. Ollama protocol details
 remain inside the adapter; they do not become IRIS core types. Discovery
 failures use specific operational exceptions because `list_models()` has no
@@ -209,7 +257,10 @@ The modules below define the current foundation and future boundaries:
 - `iris.capabilities`: executable capability identity, contracts, registry,
   runtime, structured results, and built-in tool composition;
 - `iris.intelligence`: provider-independent inference requests, model identity,
-  provider contracts, explicit registry, runtime, and structured results;
+  provider contracts, explicit registry, runtime, structured results, and
+  deterministic intelligence-routing boundary;
+- `iris.intelligence.routing`: immutable need/resource/route models, candidate
+  resolution, routing-policy contract, and initial deterministic policy;
 - `iris.intelligence.providers`: optional concrete adapters, currently Ollama;
 - `iris.skills`: `Skill` contract for named capabilities or procedures;
 - `iris.actions`: `Action` contract for concrete environment operations;
