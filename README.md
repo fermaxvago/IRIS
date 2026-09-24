@@ -27,6 +27,8 @@ IRIS 0.1 currently provides:
 - structured `EXACT`, `DEGRADED`, and `UNSATISFIED` intelligence routes;
 - explicit local memory persistence through a domain service and versioned
   SQLite backend, with provenance, temporal validity, lifecycle and relations;
+- request-scoped, bounded Context snapshots built deterministically from
+  explicitly supplied, traceable evidence;
 - typed architectural contracts for future skills and actions;
 - automated tests for the existing behavior and contracts.
 
@@ -280,10 +282,47 @@ historical state reconstruction API.
 
 Memory does not convey authorization, instructions or automation. Acquisition
 modes such as ambient can be represented without implementing perception or
-permission to persist. There is no MemoryPolicy, automatic learning, Context
-Engine, vector search, RAG, graph database, cloud sync or privacy erasure
-engine. Local databases contain readable plaintext; the caller controls where
-they are stored and who can access them.
+permission to persist. There is no MemoryPolicy, automatic learning, vector
+search, RAG, graph database, cloud sync or privacy erasure engine. Memory does
+not automatically drive Context. Local databases contain readable plaintext;
+the caller controls where they are stored and who can access them.
+
+## Context foundation
+
+`iris.context` constructs an ephemeral `ContextSnapshot` for an explicit
+request ID from caller-supplied `ContextCandidate` values. Each candidate has a
+scoped kind/key, simple scalar value, traceable evidence reference and epistemic
+status, plus independent relevance and freshness categories. Available evidence
+must be explicitly eligible to be selected; Context never grants permission or
+turns a claim into verified truth. Timestamps are timezone aware and normalized
+to UTC, while unknown observation times stay unknown. Scope uses the same
+explicit `MemoryScope` identifiers as Memory, without implicit inheritance.
+
+The replaceable selection policy first excludes ineligible candidates, then
+orders by relevance (`REQUIRED`, `HIGH`, `NORMAL`, `LOW`) and freshness
+(`CURRENT`, `RECENT`, `STALE`, `UNKNOWN`). Scope, kind, key and candidate ID
+break ties consistently regardless of input order. Identical candidate IDs
+deduplicate; incompatible reuse of an ID fails explicitly. Equal-priority,
+incompatible values for the same scoped key yield a conflict with evidence
+references, not an arbitrary latest-value choice. Callers may declare other
+uncertainties, including multiple plausible interpretations or missing evidence.
+Snapshots report `RESOLVED`, `PARTIAL`, `AMBIGUOUS` or `CONFLICTED` accordingly.
+An explicit item budget bounds every snapshot; excluding high or required
+evidence due to budget reports a partial result.
+
+`MemoryContextSource` offers an optional read-only bridge from an exact
+`MemoryQuery` (subject, kind and scope) to candidates. Normal lookup includes
+only active records and supplies a record ID instead of its content; content
+expansion and historical lookup both require explicit caller opt-in. Multiple
+matching records in reference-only mode require a narrower query or explicit
+content expansion, so unrelated IDs cannot masquerade as conflicting facts.
+The source does not select relevant memories or alter their lifecycle.
+
+Context is selected evidence for the current request: it is separate from
+persistent Memory, Session continuity and external State. Building a snapshot
+does not write Memory, invoke providers or tools, choose actions, plan, grant
+authorization or construct an LLM prompt. The future Orchestrator and model
+Context Assembly have their own boundaries; neither is implemented here.
 
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
@@ -309,6 +348,8 @@ The modules below define the current foundation and future boundaries:
 - `iris.actions`: `Action` contract for concrete environment operations;
 - `iris.memory`: IRIS-owned evidence models, `MemoryService`, backend-independent
   `MemoryStore`, SQLite persistence and the legacy WP001 `Memory` protocol.
+- `iris.context`: ephemeral candidates and evidence, deterministic bounded
+  selection, request-scoped snapshots and an explicit read-only Memory source.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
