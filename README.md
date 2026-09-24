@@ -29,15 +29,17 @@ IRIS 0.1 currently provides:
   SQLite backend, with provenance, temporal validity, lifecycle and relations;
 - request-scoped, bounded Context snapshots built deterministically from
   explicitly supplied, traceable evidence;
+- a deterministic single-step Orchestrator that selects a subsystem through
+  structured, traceable decisions;
 - typed architectural contracts for future skills and actions;
 - automated tests for the existing behavior and contracts.
 
 IRIS does **not** bundle a model or connect one automatically. It also does not
-include an Orchestrator, fallback after inference failure, agent loop, autonomous
-planning, semantic retrieval, voice, vision, or complex system actions. Ollama is
-an optional, replaceable backend; it is not IRIS or IRIS's identity. The
-intelligence router is deterministic and specialized; it is not an LLM-based
-Brain Router.
+include execution coordination, fallback after inference failure, an iterative
+agent loop, autonomous planning, semantic retrieval, voice, vision, or complex
+system actions. Ollama is an optional, replaceable backend; it is not IRIS or
+IRIS's identity. The intelligence router is deterministic and specialized; it
+is not an LLM-based Brain Router.
 
 ## Platform and product direction
 
@@ -321,8 +323,42 @@ The source does not select relevant memories or alter their lifecycle.
 Context is selected evidence for the current request: it is separate from
 persistent Memory, Session continuity and external State. Building a snapshot
 does not write Memory, invoke providers or tools, choose actions, plan, grant
-authorization or construct an LLM prompt. The future Orchestrator and model
-Context Assembly have their own boundaries; neither is implemented here.
+authorization or construct an LLM prompt. The Orchestrator consumes snapshots;
+model Context Assembly remains a separate future boundary.
+
+## Orchestrator foundation
+
+`iris.orchestrator` implements one request-scoped `observe → decide → stop`
+step. An `OrchestrationInput` links one `Request` to its exact
+`ContextSnapshot`, explicit `HandlingNeed` values and caller-supplied
+`HandlerAvailability`. Mismatched request/context identities fail before a
+decision can be made. Availability is never discovered through the network,
+filesystem, provider registries or device state.
+
+`DeterministicOrchestrationPolicy` produces exactly one immutable,
+provider-neutral `OrchestrationDecision`. Targets are `SYSTEM`, `MEMORY`,
+`CAPABILITY`, `INTELLIGENCE`, `CLARIFY` and `UNSATISFIED`. Structured reason
+codes, need IDs, snapshot identity and context issue references provide
+traceability without storing private model reasoning. The existing deterministic
+Router can supply a recognized system route; Intelligence needs are preserved
+for the separate Intelligence Router; capability IDs and Memory operation
+descriptors remain inputs for their established subsystems.
+
+Context ambiguity, conflict or missing information blocks a decision only when
+the caller explicitly links that issue to the current need. Unrelated partial or
+conflicted Context does not force clarification. An unavailable required handler
+produces `UNSATISFIED`; several needs produce the explicit
+`COMPOSITE_HANDLING_REQUIRED` result because this version performs one step.
+
+The Orchestrator coordinates IRIS; it does not replace the systems it
+coordinates. It does not execute capabilities, access Memory, invoke
+Intelligence, choose providers/models, infer authorization, plan, retry or
+construct prompts. Execution coordination and iterative cognitive loops remain
+future work.
+
+Memory tells IRIS what has been preserved. Context tells IRIS what is relevant
+now. The Orchestrator decides which subsystem should handle the next step.
+Execution comes later.
 
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
@@ -347,9 +383,11 @@ The modules below define the current foundation and future boundaries:
 - `iris.skills`: `Skill` contract for named capabilities or procedures;
 - `iris.actions`: `Action` contract for concrete environment operations;
 - `iris.memory`: IRIS-owned evidence models, `MemoryService`, backend-independent
-  `MemoryStore`, SQLite persistence and the legacy WP001 `Memory` protocol.
+  `MemoryStore`, SQLite persistence and the legacy WP001 `Memory` protocol;
 - `iris.context`: ephemeral candidates and evidence, deterministic bounded
-  selection, request-scoped snapshots and an explicit read-only Memory source.
+  selection, request-scoped snapshots and an explicit read-only Memory source;
+- `iris.orchestrator`: immutable handling needs, explicit availability,
+  deterministic single-step policy and traceable coordination decisions.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
