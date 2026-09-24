@@ -25,12 +25,14 @@ IRIS 0.1 currently provides:
 - typed intelligence needs, routable resources, hard-constraint candidate
   resolution, and a deterministic replaceable routing policy;
 - structured `EXACT`, `DEGRADED`, and `UNSATISFIED` intelligence routes;
-- typed architectural contracts for future skills, actions, and memory;
+- explicit local memory persistence through a domain service and versioned
+  SQLite backend, with provenance, temporal validity, lifecycle and relations;
+- typed architectural contracts for future skills and actions;
 - automated tests for the existing behavior and contracts.
 
 IRIS does **not** bundle a model or connect one automatically. It also does not
 include an Orchestrator, fallback after inference failure, agent loop, autonomous
-planning, semantic memory, voice, vision, or complex system actions. Ollama is
+planning, semantic retrieval, voice, vision, or complex system actions. Ollama is
 an optional, replaceable backend; it is not IRIS or IRIS's identity. The
 intelligence router is deterministic and specialized; it is not an LLM-based
 Brain Router.
@@ -242,6 +244,47 @@ result envelope. Inference failures use a structured failed
 `IntelligenceResult`. Unexpected programming errors and contract violations
 remain visible.
 
+## Memory foundation
+
+`MemoryCandidate` is explicit caller-supplied evidence. `MemoryService` assigns
+a stable ID and UTC `recorded_at`, then persists a `MemoryRecord` through the
+backend-independent `MemoryStore` contract. `SQLiteMemoryStore` uses a
+caller-supplied local path and SQLite schema version 1 (`PRAGMA user_version`).
+Existing databases reopen without resetting data; unsupported future versions
+or unversioned nonempty databases fail without automatic modification. No
+database path, capture source, or automatic persistence is wired into the CLI.
+
+Each record retains its class (working/episodic/semantic), extensible kind,
+subject, scope, retention, provenance, epistemic status, acquisition mode,
+source/artifact references and distinct `observed_at`, `recorded_at`,
+`valid_from`, `valid_until` timestamps. Times must be timezone aware and are
+stored in UTC. Unknown times stay unknown. References are identifiers; the
+memory backend does not access or copy artifacts.
+
+`MemoryService.query(MemoryQuery(...))` defaults to `ACTIVE` records and orders
+results by `recorded_at` then ID. A temporal query filters `observed_at` using
+the half-open interval `[observed_from, observed_until)`; unknown observation
+times do not match that range. Explicit `statuses=None` includes history.
+`get(id, include_history=True)` can inspect a hidden record. Supersession
+atomically stores a new record, marks the old one `SUPERSEDED`, and saves a
+`SUPERSEDES` relation. `retract`, `forget` and explicit `expire` change lifecycle
+without physically deleting evidence. Retention is metadata, with no daemon.
+
+`current(subject, kind, scope, as_of)` considers only active, temporally valid
+records for that exact scope. It compares effective validity/observation time,
+never insertion time. Missing event time or tied latest observations produce
+`AMBIGUOUS`; no matching active evidence produces `NONE`. Its `FOUND` result
+identifies current **stored evidence**, not verified external truth. Historical
+queries can inspect superseded or retracted records, but `current` is not a
+historical state reconstruction API.
+
+Memory does not convey authorization, instructions or automation. Acquisition
+modes such as ambient can be represented without implementing perception or
+permission to persist. There is no MemoryPolicy, automatic learning, Context
+Engine, vector search, RAG, graph database, cloud sync or privacy erasure
+engine. Local databases contain readable plaintext; the caller controls where
+they are stored and who can access them.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -264,7 +307,8 @@ The modules below define the current foundation and future boundaries:
 - `iris.intelligence.providers`: optional concrete adapters, currently Ollama;
 - `iris.skills`: `Skill` contract for named capabilities or procedures;
 - `iris.actions`: `Action` contract for concrete environment operations;
-- `iris.memory`: model-independent `Memory` storage contract owned by IRIS.
+- `iris.memory`: IRIS-owned evidence models, `MemoryService`, backend-independent
+  `MemoryStore`, SQLite persistence and the legacy WP001 `Memory` protocol.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
