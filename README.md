@@ -31,15 +31,19 @@ IRIS 0.1 currently provides:
   explicitly supplied, traceable evidence;
 - a deterministic single-step Orchestrator that selects a subsystem through
   structured, traceable decisions;
+- a single-step Execution Coordinator with explicit handlers for system,
+  memory, capability, and intelligence decisions;
+- immutable execution requests/results with end-to-end identity, structured
+  failures, and an explicit side-effect boundary;
 - typed architectural contracts for future skills and actions;
 - automated tests for the existing behavior and contracts.
 
 IRIS does **not** bundle a model or connect one automatically. It also does not
-include execution coordination, fallback after inference failure, an iterative
-agent loop, autonomous planning, semantic retrieval, voice, vision, or complex
-system actions. Ollama is an optional, replaceable backend; it is not IRIS or
-IRIS's identity. The intelligence router is deterministic and specialized; it
-is not an LLM-based Brain Router.
+include retry or fallback after execution failure, an iterative agent loop,
+autonomous planning, authorization, semantic retrieval, voice, vision, or
+complex system actions. Ollama is an optional, replaceable backend; it is not
+IRIS or IRIS's identity. The intelligence router is deterministic and
+specialized; it is not an LLM-based Brain Router.
 
 ## Platform and product direction
 
@@ -353,12 +357,50 @@ produces `UNSATISFIED`; several needs produce the explicit
 The Orchestrator coordinates IRIS; it does not replace the systems it
 coordinates. It does not execute capabilities, access Memory, invoke
 Intelligence, choose providers/models, infer authorization, plan, retry or
-construct prompts. Execution coordination and iterative cognitive loops remain
-future work.
+construct prompts. Execution consumes its decisions through a separate
+boundary; iterative cognitive loops remain future work.
 
 Memory tells IRIS what has been preserved. Context tells IRIS what is relevant
 now. The Orchestrator decides which subsystem should handle the next step.
-Execution comes later.
+Execution performs that single step and records what happened.
+
+## Execution foundation
+
+`iris.execution` implements `decide → execute once → observe result → stop`.
+An immutable `ExecutionRequest` links an independent execution ID to the exact
+request, Context snapshot, and orchestration decision identities. It also
+carries the explicit subsystem input that WP009 deliberately did not discover
+or store. The resulting `ExecutionResult` records target, handler reference,
+structured status/output/failure, and UTC start/completion timestamps without
+private reasoning.
+
+`ExecutionCoordinator` dispatches deterministically from the already-selected
+target to one caller-registered handler. `SYSTEM`, `MEMORY`, `CAPABILITY`, and
+`INTELLIGENCE` are executable. `CLARIFY` and `UNSATISFIED` are terminal and
+produce `NOT_EXECUTED` with zero handler calls. A missing executable handler is
+reported as `REJECTED`; it never selects another subsystem.
+
+The handlers are deliberately small adapters. They reuse `CommandDispatcher`,
+`MemoryService`, `CapabilityRuntime`, and the existing Intelligence Router plus
+`IntelligenceRuntime`. Intelligence routing still selects provider/model;
+degraded but admissible routes execute once, while an unsatisfied route never
+reaches the runtime. Memory executes only the operation and operands explicitly
+carried by the decision/request. No automatic memory write occurs.
+
+Execution is the explicit side-effect boundary of IRIS. Within one coordinator
+call the selected handler is invoked at most once. A failed execution is an
+observation, not permission to retry: WP010 performs no retry, fallback,
+rerouting, second orchestration, response synthesis, Context mutation, planning,
+workflow decomposition, rollback, or automatic persistence. This is
+at-most-once invocation within one process call, not distributed exactly-once
+semantics.
+
+Expected domain/operational outcomes are represented as `FAILED` or `REJECTED`;
+contract violations and unexpected programming defects propagate. Explicit
+dependency wiring and immutable trace data leave room to insert authorization,
+confirmation, audit, cancellation, or policy checks around this boundary later,
+without claiming any of those systems exist today. The Cognitive Loop comes
+later.
 
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
@@ -388,6 +430,9 @@ The modules below define the current foundation and future boundaries:
   selection, request-scoped snapshots and an explicit read-only Memory source;
 - `iris.orchestrator`: immutable handling needs, explicit availability,
   deterministic single-step policy and traceable coordination decisions.
+- `iris.execution`: immutable execution models, deterministic coordinator, and
+  adapters to the established system, Memory, Capability, and Intelligence
+  boundaries.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
