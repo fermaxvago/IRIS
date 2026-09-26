@@ -128,20 +128,21 @@ License/provenance reviewed:
 
 ## Registry summary
 
-All entries below were registered and last verified on **2026-09-25**. Identity
-and repository status were checked against the canonical GitHub repositories.
-License notes are a basic provenance record, not legal advice.
+All entries below were registered on **2026-09-25**. Identity and repository
+status were checked against the canonical GitHub repositories on that date.
+Later research activity is recorded per entry. License notes are a basic
+provenance record, not legal advice.
 
 | Reference | Canonical repository | Status | Declared license summary |
 | --- | --- | --- | --- |
-| OpenJarvis | <https://github.com/open-jarvis/OpenJarvis> | `REGISTERED` | Apache-2.0 |
-| OpenClaw | <https://github.com/openclaw/openclaw> | `REGISTERED` | MIT; third-party notices also apply |
+| OpenJarvis | <https://github.com/open-jarvis/OpenJarvis> | `REVIEWED` | Apache-2.0 |
+| OpenClaw | <https://github.com/openclaw/openclaw> | `REVIEWED` | MIT; third-party notices also apply |
 | Letta | <https://github.com/letta-ai/letta> | `REGISTERED` | Apache-2.0 |
 | Mem0 | <https://github.com/mem0ai/mem0> | `REGISTERED` | Apache-2.0 |
 | OmniRoute | <https://github.com/arnoldwender/omniroute> | `REGISTERED` | MIT |
-| LangGraph | <https://github.com/langchain-ai/langgraph> | `REGISTERED` | MIT |
-| Microsoft Agent Framework | <https://github.com/microsoft/agent-framework> | `REGISTERED` | MIT |
-| AutoGen | <https://github.com/microsoft/autogen> | `REGISTERED` | Mixed scope; root CC-BY-4.0 and code package license files must be checked |
+| LangGraph | <https://github.com/langchain-ai/langgraph> | `REVIEWED` | MIT |
+| Microsoft Agent Framework | <https://github.com/microsoft/agent-framework> | `REVIEWED` | MIT |
+| AutoGen | <https://github.com/microsoft/autogen> | `CHANGED` | Mixed scope; root CC-BY-4.0 and code package license files must be checked |
 | PersonalJarvis | <https://github.com/PersonalJarvis/PersonalJarvis> | `REGISTERED` | Apache-2.0 on current line; releases through 1.6.0 remain MIT |
 | Particle Interaction - wonderstone | <https://github.com/wonderstone/particle-interaction> | `REGISTERED` | No license recorded at repository root |
 
@@ -149,15 +150,16 @@ License notes are a basic provenance record, not legal advice.
 
 - **Name:** OpenJarvis
 - **Canonical URL:** <https://github.com/open-jarvis/OpenJarvis>
-- **Status:** `REGISTERED`
+- **Status:** `REVIEWED`
 - **Relevant areas:** personal AI; local-first architecture; agents;
   intelligence execution; model/resource routing; tools.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-25
-- **Relevant Work Packages:** Not recorded.
+- **Relevant Work Packages:** WP011.
 - **Research history:** Initial identity, relevance, and basic provenance review
-  during registry initialization on 2026-09-25. No problem-specific analysis
-  recorded.
+  during registry initialization on 2026-09-25. WP011 relevance screening on
+  2026-09-25 reviewed its local-first agent primitives and learning/execution
+  loop; no Goal or Plan contract was adopted. Analysis outcome: `REVIEWED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** Not recorded.
 - **Adopted patterns:** Not recorded.
@@ -170,15 +172,17 @@ License notes are a basic provenance record, not legal advice.
 
 - **Name:** OpenClaw
 - **Canonical URL:** <https://github.com/openclaw/openclaw>
-- **Status:** `REGISTERED`
+- **Status:** `REVIEWED`
 - **Relevant areas:** personal assistant; gateways; channels; integrations;
   multiple devices; future IRIS Mesh concepts.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-25
-- **Relevant Work Packages:** Not recorded.
+- **Relevant Work Packages:** WP011.
 - **Research history:** Initial identity, relevance, and basic provenance review
-  during registry initialization on 2026-09-25. No problem-specific analysis
-  recorded.
+  during registry initialization on 2026-09-25. WP011 relevance screening on
+  2026-09-25 reviewed its gateway, channel, and integration boundaries; these
+  did not supply a Goal or Plan representation for WP011. Analysis outcome:
+  `REVIEWED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** Not recorded.
 - **Adopted patterns:** Not recorded.
@@ -260,15 +264,17 @@ License notes are a basic provenance record, not legal advice.
 
 - **Name:** LangGraph
 - **Canonical URL:** <https://github.com/langchain-ai/langgraph>
-- **Status:** `REGISTERED`
+- **Status:** `REVIEWED`
 - **Relevant areas:** agent/workflow graphs; state; execution loops;
   checkpoints; durable execution.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-25
-- **Relevant Work Packages:** Not recorded.
+- **Relevant Work Packages:** WP011.
 - **Research history:** Initial identity, relevance, and basic provenance review
-  during registry initialization on 2026-09-25. No problem-specific analysis
-  recorded.
+  during registry initialization on 2026-09-25. WP011 reviewed explicit graph
+  nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
+  only a representation-level DAG and did not adopt runtime, checkpoints or
+  execution loops. Analysis outcome: `REVIEWED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** Not recorded.
 - **Adopted patterns:** Not recorded.
@@ -283,15 +289,18 @@ License notes are a basic provenance record, not legal advice.
 
 - **Name:** Microsoft Agent Framework
 - **Canonical URL:** <https://github.com/microsoft/agent-framework>
-- **Status:** `REGISTERED`
+- **Status:** `REVIEWED`
 - **Relevant areas:** agents; workflows; execution; multi-agent architecture;
   observability; human-in-the-loop; durability.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-25
-- **Relevant Work Packages:** Not recorded.
+- **Relevant Work Packages:** WP011.
 - **Research history:** Initial identity, relevance, and basic provenance review
-  during registry initialization on 2026-09-25. No problem-specific analysis
-  recorded.
+  during registry initialization on 2026-09-25. WP011 reviewed graph-based
+  workflows, explicit execution paths, and the distinction between agents and
+  deterministic workflow functions on 2026-09-25. IRIS retained a
+  provider-independent Planner and excluded workflow runtime behavior. Analysis
+  outcome: `REVIEWED`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -307,21 +316,26 @@ License notes are a basic provenance record, not legal advice.
 
 - **Name:** AutoGen
 - **Canonical URL:** <https://github.com/microsoft/autogen>
-- **Status:** `REGISTERED`
+- **Status:** `CHANGED`
 - **Relevant areas:** multi-agent systems; agent communication; delegation;
   distributed runtime; historical Microsoft agent architecture.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-25
-- **Relevant Work Packages:** Not recorded.
+- **Relevant Work Packages:** WP011.
 - **Research history:** Initial identity, relevance, and basic provenance review
-  during registry initialization on 2026-09-25. No problem-specific analysis
-  recorded.
+  during registry initialization on 2026-09-25. WP011 reviewed task
+  decomposition and agent-conversation approaches on 2026-09-25. Conversational
+  multi-agent decomposition was rejected for the deterministic, representation-
+  only WP011 foundation. Analysis outcome: `REJECTED_PATTERN`.
 - **Known changes:** Microsoft Agent Framework must be considered when studying
   the evolution or conceptual succession of some AutoGen ideas. This does not
-  establish equivalence or automatic replacement.
+  establish equivalence or automatic replacement. On 2026-09-25 the canonical
+  repository declared maintenance mode and directed new users toward Microsoft
+  Agent Framework; historical conclusions should account for that status.
 - **Influenced decisions:** Not recorded.
 - **Adopted patterns:** Not recorded.
-- **Rejected patterns:** Not recorded.
+- **Rejected patterns:** WP011 rejected model-driven, multi-agent conversation as
+  the mandatory mechanism for constructing the foundational Plan contract.
 - **License/provenance notes:** GitHub identifies the root `LICENSE` as
   CC-BY-4.0, while code packages contain separate `LICENSE-CODE` files that
   declare MIT. Treat the repository as mixed-scope and verify the exact file and

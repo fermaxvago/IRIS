@@ -35,15 +35,19 @@ IRIS 0.1 currently provides:
   memory, capability, and intelligence decisions;
 - immutable execution requests/results with end-to-end identity, structured
   failures, and an explicit side-effect boundary;
+- immutable Goal, Plan, and PlanStep representations with explicit constraints,
+  success criteria, assumptions, expected outcomes, and dependency validation;
+- a provider-independent Planner contract plus an explicit-rule deterministic
+  implementation for side-effect-free, reproducible planning;
 - typed architectural contracts for future skills and actions;
 - automated tests for the existing behavior and contracts.
 
 IRIS does **not** bundle a model or connect one automatically. It also does not
 include retry or fallback after execution failure, an iterative agent loop,
-autonomous planning, authorization, semantic retrieval, voice, vision, or
-complex system actions. Ollama is an optional, replaceable backend; it is not
-IRIS or IRIS's identity. The intelligence router is deterministic and
-specialized; it is not an LLM-based Brain Router.
+autonomous planning/execution, PlanRun, authorization, semantic retrieval,
+voice, vision, or complex system actions. Ollama is an optional, replaceable
+backend; it is not IRIS or IRIS's identity. The intelligence router is
+deterministic and specialized; it is not an LLM-based Brain Router.
 
 ## Platform and product direction
 
@@ -364,6 +368,37 @@ Memory tells IRIS what has been preserved. Context tells IRIS what is relevant
 now. The Orchestrator decides which subsystem should handle the next step.
 Execution performs that single step and records what happened.
 
+## Goal and Planning foundation
+
+`iris.planning` represents desired outcomes and possible strategies without
+performing them. A `Goal` keeps its own identity, objective, scope, provenance,
+constraints and success criteria. A `Plan` has a separate identity and contains
+explicit assumptions plus immutable `PlanStep` values. Every step declares its
+own objective, dependencies, optional high-level `HandlingKind`, constraints and
+expected outcome. Expected outcomes are intentions, not observed results.
+
+Dependencies are semantic edges rather than list ordering. Plan construction
+rejects duplicate step IDs, unknown dependencies, self-dependencies, cycles and
+zero-step plans. Multiple roots, multiple terminal steps and diamond-shaped DAGs
+remain valid. Stable serialization orders steps and dependencies by identity;
+this does not authorize concurrent execution.
+
+The provider-independent `Planner` protocol returns one typed `PlanningResult`:
+`PLAN_CREATED`, `NO_PLAN_REQUIRED`, `INSUFFICIENT_CONTEXT`, or
+`UNSATISFIABLE`. The initial `DeterministicPlanner` uses caller-supplied exact
+objective rules. It consumes only its `PlanningRequest` and optional explicit
+`ContextSnapshot`; it performs no Memory lookup, provider invocation, tool
+discovery, orchestration or execution. Unknown objectives are unsatisfiable only
+under that configured rule set, not claims of real-world impossibility.
+
+Goal is not Plan. Plan is not PlanRun, authorization or execution. Planning
+answers what would have to be done, validates the representation, and stops.
+There is no automatic plan persistence, approval, step dispatch, progress
+tracking, retry, replanning, concurrency or cognitive loop in WP011. WP008
+Context remains immutable input, WP009 Orchestrator remains the handling
+decision boundary, and WP010 Execution remains the single-step side-effect
+boundary.
+
 ## Execution foundation
 
 `iris.execution` implements `decide → execute once → observe result → stop`.
@@ -429,7 +464,9 @@ The modules below define the current foundation and future boundaries:
 - `iris.context`: ephemeral candidates and evidence, deterministic bounded
   selection, request-scoped snapshots and an explicit read-only Memory source;
 - `iris.orchestrator`: immutable handling needs, explicit availability,
-  deterministic single-step policy and traceable coordination decisions.
+  deterministic single-step policy and traceable coordination decisions;
+- `iris.planning`: immutable goals and plans, provider-independent Planner
+  contract, deterministic rule templates, typed outcomes and DAG validation;
 - `iris.execution`: immutable execution models, deterministic coordinator, and
   adapters to the established system, Memory, Capability, and Intelligence
   boundaries.
