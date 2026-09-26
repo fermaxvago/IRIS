@@ -39,15 +39,18 @@ IRIS 0.1 currently provides:
   success criteria, assumptions, expected outcomes, and dependency validation;
 - a provider-independent Planner contract plus an explicit-rule deterministic
   implementation for side-effect-free, reproducible planning;
+- immutable PlanRun revisions with explicit step progress, append-only
+  observations, step-scoped blockers, optimistic revision checks, and derived
+  availability/structural conditions;
 - typed architectural contracts for future skills and actions;
 - automated tests for the existing behavior and contracts.
 
 IRIS does **not** bundle a model or connect one automatically. It also does not
 include retry or fallback after execution failure, an iterative agent loop,
-autonomous planning/execution, PlanRun, authorization, semantic retrieval,
-voice, vision, or complex system actions. Ollama is an optional, replaceable
-backend; it is not IRIS or IRIS's identity. The intelligence router is
-deterministic and specialized; it is not an LLM-based Brain Router.
+autonomous planning/execution, a PlanRun Controller, authorization, semantic
+retrieval, voice, vision, or complex system actions. Ollama is an optional,
+replaceable backend; it is not IRIS or IRIS's identity. The intelligence router
+is deterministic and specialized; it is not an LLM-based Brain Router.
 
 ## Platform and product direction
 
@@ -399,6 +402,38 @@ Context remains immutable input, WP009 Orchestrator remains the handling
 decision boundary, and WP010 Execution remains the single-step side-effect
 boundary.
 
+## PlanRun and progress-state foundation
+
+`iris.plan_runs` represents one operational instance of an immutable WP011
+`Plan`. A revision-zero Run contains exactly one `NOT_STARTED` `StepProgress`
+for every PlanStep. Each explicit atomic `PlanRunUpdate` is checked against its
+expected revision and, when valid, the deterministic `PlanRunReducer` produces
+a new immutable revision. It never mutates the Plan or earlier Run snapshot.
+
+Step progress is deliberately small: `NOT_STARTED`, `ACTIVE`, `SUCCEEDED`, and
+`FAILED`. Only the documented forward transitions are legal, and terminal
+transitions require references to observations already recorded in the same
+Run with compatible scope. Recording an observation never changes progress.
+An execution failure is therefore not automatically a failed step, and a
+successful execution is not automatically a successful step.
+
+Eligibility is derived from `Plan + PlanRun`, not persisted as progress.
+`READY`, `WAITING_DEPENDENCIES`, `BLOCKED`, `ACTIVE`, and `TERMINAL` follow a
+fixed precedence over progress, explicit active blockers, and dependency
+states. Multiple READY steps remain unselected. Dependency failure blocks a
+dependent step without manufacturing a redundant blocker.
+
+The derived Run condition is `OPEN`, `STRUCTURALLY_COMPLETE`, or
+`CANNOT_ADVANCE`. Structural completion means every step is `SUCCEEDED`; it is
+not proof that the Goal is satisfied. Cannot-advance means no step is READY or
+ACTIVE under the current snapshot; it is not Goal failure and does not trigger
+retry, replanning, abandonment, or execution.
+
+WP012 contains no Controller, next-step selection, Execution bridge, outcome
+evaluator, attempts, retry, pause/resume, checkpoint persistence,
+authorization, automatic Memory/Context mutation, agent loop, or durable
+workflow. Applying one update produces one new state snapshot and stops.
+
 ## Execution foundation
 
 `iris.execution` implements `decide → execute once → observe result → stop`.
@@ -467,6 +502,9 @@ The modules below define the current foundation and future boundaries:
   deterministic single-step policy and traceable coordination decisions;
 - `iris.planning`: immutable goals and plans, provider-independent Planner
   contract, deterministic rule templates, typed outcomes and DAG validation;
+- `iris.plan_runs`: immutable runtime-state revisions, explicit atomic updates,
+  deterministic reduction, evidence/blocker validation, derived availability
+  and structural Run conditions;
 - `iris.execution`: immutable execution models, deterministic coordinator, and
   adapters to the established system, Memory, Capability, and Intelligence
   boundaries.
