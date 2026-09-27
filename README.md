@@ -468,6 +468,40 @@ Intelligence or Memory, modify Context, retry, replan, checkpoint, schedule, or
 enter a loop. `RUN_STRUCTURALLY_COMPLETE` is not Goal satisfaction, and
 `RUN_CANNOT_ADVANCE` is not Goal failure.
 
+## PlanStep handling-preparation foundation
+
+`iris.plan_handling` accepts one current `ControlDecision(STEP_SELECTED)`,
+resolves the exact selected `PlanStep`, reuses WP012's canonical `READY`
+projection, and produces one immutable `StepHandlingPreparationResult`. It
+reuses the existing `iris.orchestrator.HandlingNeed` contract and stops before
+orchestration, handler availability, authorization, activation, or execution.
+
+Preparation is strictly declarative. A missing `required_handling` produces
+`HANDLING_UNSPECIFIED`. Declared `SYSTEM`, `MEMORY`, or `INTELLIGENCE` handling
+without a complete, compatible `StepHandlingSpecification` produces
+`INSUFFICIENT_DETAIL`. `CAPABILITY` alone is sufficient for a generic
+capability need whose `capability_id` remains `None`; an explicit compatible
+specification may supply the identity. Missing detail is never inferred from
+the step objective, expected outcome, constraints, Context, Memory, a model, or
+a registry.
+Supplying a specification for a step whose handling was not declared is a
+contract contradiction and is rejected; a specification cannot silently
+override the Plan.
+
+Every prepared need has empty blockers and a deterministic identity derived
+from Plan ID, Run ID, observed revision, and step ID. The preparation result
+records those same causal identities plus a structured reason and preparer
+provenance. `validate_step_handling_preparation_current` rejects another Plan,
+another Run, a stale revision, a missing step, a non-`READY` prepared step, or
+a noncanonical need identity; it does not refresh or repair the result.
+
+Preparation does not create a synthetic `Request`, convert planning
+constraints into authorization, convert expected outcomes into execution
+input, call the Orchestrator or ExecutionCoordinator, mutate PlanRun, activate
+the step, increment the revision, retry, replan, ask the user, persist state, or
+enter a loop. `PREPARED` means only that a valid semantic need can be stated;
+it does not mean safe, authorized, available, active, or executed.
+
 ## Execution foundation
 
 `iris.execution` implements `decide → execute once → observe result → stop`.
@@ -541,6 +575,9 @@ The modules below define the current foundation and future boundaries:
   and structural Run conditions;
 - `iris.plan_control`: immutable one-shot control decisions, explicit READY-step
   selection policy, revision-current validation, and no execution or mutation;
+- `iris.plan_handling`: immutable one-shot preparation from a current selected
+  PlanStep to an existing HandlingNeed, with explicit abstention and no
+  orchestration, activation, or execution;
 - `iris.execution`: immutable execution models, deterministic coordinator, and
   adapters to the established system, Memory, Capability, and Intelligence
   boundaries.
