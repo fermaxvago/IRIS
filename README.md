@@ -434,6 +434,40 @@ evaluator, attempts, retry, pause/resume, checkpoint persistence,
 authorization, automatic Memory/Context mutation, agent loop, or durable
 workflow. Applying one update produces one new state snapshot and stops.
 
+## PlanRun control-decision foundation
+
+`iris.plan_control` observes one validated `Plan + PlanRun` revision, reuses
+WP012's canonical availability and Run-condition projections, produces exactly
+one immutable `ControlDecision`, and stops. Its outcomes are `STEP_SELECTED`,
+`ACTIVE_WORK_PENDING`, `SELECTION_UNRESOLVED`, `RUN_CANNOT_ADVANCE`, and
+`RUN_STRUCTURALLY_COMPLETE`.
+
+Control is serial and conservative in WP013. Any `ACTIVE` step takes precedence
+over selecting additional `READY` work, including when several steps are
+already active. A sole `READY` step is selected directly. Multiple `READY`
+steps require an explicit `StepSelectionPolicy`; absence or legitimate policy
+abstention produces `SELECTION_UNRESOLVED`, never an ordering-based fallback.
+Stable candidate serialization order is not operational priority.
+
+The initial `ExplicitPriorityStepSelectionPolicy` consumes immutable,
+caller-supplied integer priorities. It selects only a unique highest-priority
+candidate; missing priorities and maximum-priority ties remain unresolved. A
+policy result naming an unknown or non-candidate step is rejected rather than
+silently repaired.
+
+Every decision records Plan identity, Run identity, observed revision,
+structured reason, candidate and active step identities, and controller/policy
+provenance. `validate_control_decision_current` rejects decisions for another
+Plan or Run and decisions made against an earlier revision. Validation does not
+recalculate or update a stale decision.
+
+Selection is not activation, authorization, execution, or step success.
+`decide()` does not mutate Plan or PlanRun, increment the revision, create a
+`PlanRunUpdate` or `HandlingNeed`, invoke Orchestration or Execution, consult
+Intelligence or Memory, modify Context, retry, replan, checkpoint, schedule, or
+enter a loop. `RUN_STRUCTURALLY_COMPLETE` is not Goal satisfaction, and
+`RUN_CANNOT_ADVANCE` is not Goal failure.
+
 ## Execution foundation
 
 `iris.execution` implements `decide → execute once → observe result → stop`.
@@ -505,6 +539,8 @@ The modules below define the current foundation and future boundaries:
 - `iris.plan_runs`: immutable runtime-state revisions, explicit atomic updates,
   deterministic reduction, evidence/blocker validation, derived availability
   and structural Run conditions;
+- `iris.plan_control`: immutable one-shot control decisions, explicit READY-step
+  selection policy, revision-current validation, and no execution or mutation;
 - `iris.execution`: immutable execution models, deterministic coordinator, and
   adapters to the established system, Memory, Capability, and Intelligence
   boundaries.
