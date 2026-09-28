@@ -8,7 +8,7 @@ from iris.capabilities import (
     CapabilityResult,
 )
 from iris.core import Request
-from iris.dispatch import CommandDispatcher, Dispatcher
+from iris.dispatch import CommandDispatcher, Dispatcher, RouteDispatcher
 from iris.router import DeterministicRouter, RouteDecision, RouteTarget
 
 
@@ -93,6 +93,7 @@ def test_dispatch_occurs_only_after_routing_decision() -> None:
     assert capability_input.metadata["source"] == "test"
     assert result.output == "formatted status"
     assert isinstance(dispatcher, Dispatcher)
+    assert isinstance(dispatcher, RouteDispatcher)
     assert isinstance(RecordingRuntime(), CapabilityExecutor)
 
 

@@ -64,7 +64,8 @@ class IntelligenceExecutionHandler:
             metadata={
                 **execution_input.metadata,
                 "decision_id": request.decision.decision_id,
-                "request_id": request.decision.request_id,
+                "subject_id": request.subject.subject_id,
+                "context_snapshot_id": request.context.snapshot_id,
             },
         )
         try:

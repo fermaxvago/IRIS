@@ -382,11 +382,11 @@ The Orchestrator coordinates IRIS; it does not replace the systems it
 coordinates. It does not execute capabilities, access Memory, invoke
 Intelligence, choose providers/models, infer authorization, plan, retry or
 construct prompts. Execution consumes its decisions through a separate
-boundary; WP010 remains intentionally Request-only. `request_id` is retained on
-REQUEST decisions solely as a non-canonical compatibility value, is absent for
-PLAN_STEP decisions even when their origin is a Request, and never appears in
-the canonical orchestration trace. Iterative cognitive loops remain future
-work.
+boundary. `request_id` is retained on REQUEST orchestration decisions solely as
+a non-canonical compatibility value, is absent for PLAN_STEP decisions even
+when their origin is a Request, and never appears in canonical orchestration or
+execution lineage. WP018 Execution uses `subject_id` and the exact Context
+snapshot instead. Iterative cognitive loops remain future work.
 
 Memory tells IRIS what has been preserved. Context tells IRIS what is relevant
 now. The Orchestrator decides which subsystem should handle the next step.
@@ -420,8 +420,8 @@ answers what would have to be done, validates the representation, and stops.
 There is no automatic plan persistence, approval, step dispatch, progress
 tracking, retry, replanning, concurrency or cognitive loop in WP011. WP008
 Context remains immutable input, WP009 Orchestrator remains the handling
-decision boundary, and WP010 Execution remains the single-step side-effect
-boundary.
+decision boundary, and WP010/WP018 Execution remains the single-step
+side-effect boundary.
 
 ## PlanRun and progress-state foundation
 
@@ -554,13 +554,18 @@ adapter layer knows the established Request and Plan/PlanRun contracts.
 ## Execution foundation
 
 `iris.execution` implements `decide → execute once → observe result → stop` for
-the existing REQUEST path only.
-An immutable `ExecutionRequest` links an independent execution ID to the exact
-request, Context snapshot, and orchestration decision identities. It also
-carries the explicit subsystem input that WP009 deliberately did not discover
-or store. The resulting `ExecutionResult` records target, handler reference,
-structured status/output/failure, and UTC start/completion timestamps without
-private reasoning.
+both REQUEST and PLAN_STEP work subjects. An immutable `ExecutionRequest` binds
+an independent execution ID to the complete `WorkSubject`, exact
+`ContextSnapshot`, current `OrchestrationDecision`, and explicit handler
+operands. Construction reuses WP017 currentness validation: subject ownership
+is checked by `subject_id`, while the exact Context snapshot ID must match the
+decision. A changed origin description does not change ownership, and a root
+Request cannot impersonate derived PLAN_STEP work.
+
+The lightweight `ExecutionResult` records `subject_id`, decision and Context
+snapshot IDs, target, handler reference, structured status/output/failure, and
+UTC start/completion timestamps. It stores no canonical `request_id`; the four
+subject, snapshot, decision, and execution identities remain distinct.
 
 `ExecutionCoordinator` dispatches deterministically from the already-selected
 target to one caller-registered handler. `SYSTEM`, `MEMORY`, `CAPABILITY`, and
@@ -573,11 +578,18 @@ The handlers are deliberately small adapters. They reuse `CommandDispatcher`,
 `IntelligenceRuntime`. Intelligence routing still selects provider/model;
 degraded but admissible routes execute once, while an unsatisfied route never
 reaches the runtime. Memory executes only the operation and operands explicitly
-carried by the decision/request. No automatic memory write occurs.
+carried by the decision/request. SYSTEM execution consumes a neutral immutable
+`CapabilityInput` rather than a Request. `CommandDispatcher.dispatch_route()`
+is the single Request-neutral route implementation; the legacy
+`dispatch(request, decision)` API only adapts Request data into neutral
+operands, preserving existing CLI behavior without synthetic Requests. No
+automatic memory write occurs.
 
 Execution is the explicit side-effect boundary of IRIS. Within one coordinator
-call the selected handler is invoked at most once. A failed execution is an
-observation, not permission to retry: WP010 performs no retry, fallback,
+call the selected handler is invoked at most once. This is not a global
+exactly-once guarantee: there is no durable execution ledger, deduplication, or
+idempotency framework. A failed execution is an observation, not permission to
+retry: WP018 performs no retry, fallback,
 rerouting, second orchestration, response synthesis, Context mutation, planning,
 workflow decomposition, rollback, or automatic persistence. This is
 at-most-once invocation within one process call, not distributed exactly-once
@@ -633,9 +645,9 @@ The modules below define the current foundation and future boundaries:
 - `iris.work_identity`: immutable typed Request and PlanStep operational
   identities, canonical subject IDs, optional root-cause references, and pure
   adapters without runtime or state semantics;
-- `iris.execution`: immutable execution models, deterministic coordinator, and
-  adapters to the established system, Memory, Capability, and Intelligence
-  boundaries.
+- `iris.execution`: WorkSubject-scoped immutable execution models, deterministic
+  coordinator, and adapters to the established system, Memory, Capability, and
+  Intelligence boundaries.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.

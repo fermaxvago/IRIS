@@ -23,15 +23,28 @@ class DispatchResult:
 
 
 @runtime_checkable
+class RouteDispatcher(Protocol):
+    """Execute one already-made route from neutral invocation operands."""
+
+    def dispatch_route(
+        self,
+        decision: RouteDecision,
+        invocation: CapabilityInput,
+    ) -> DispatchResult:
+        """Handle an already-selected route without requiring Request identity."""
+        ...
+
+
+@runtime_checkable
 class Dispatcher(Protocol):
-    """Execute an already-made route decision for a request."""
+    """Legacy Request adapter retained for interface compatibility."""
 
     def dispatch(
         self,
         request: Request,
         decision: RouteDecision,
     ) -> DispatchResult:
-        """Handle a decision and return an interface-neutral result."""
+        """Adapt a Request and handle its already-selected route."""
         ...
 
 
@@ -47,10 +60,33 @@ class CommandDispatcher:
 
     def dispatch(
         self,
-        _request: Request,
+        request: Request,
         decision: RouteDecision,
     ) -> DispatchResult:
-        """Handle a prior routing decision outside the Router."""
+        """Adapt the legacy Request path into neutral route operands."""
+
+        if not isinstance(request, Request):
+            raise TypeError("request must be a Request")
+        invocation = CapabilityInput(
+            payload={"content": request.content},
+            metadata={
+                "request_id": request.request_id,
+                "source": request.source,
+            },
+        )
+        return self.dispatch_route(decision, invocation)
+
+    def dispatch_route(
+        self,
+        decision: RouteDecision,
+        invocation: CapabilityInput,
+    ) -> DispatchResult:
+        """Handle a prior route decision from explicit neutral operands."""
+
+        if not isinstance(decision, RouteDecision):
+            raise TypeError("decision must be a RouteDecision")
+        if not isinstance(invocation, CapabilityInput):
+            raise TypeError("invocation must be a CapabilityInput")
 
         if decision.target is RouteTarget.CLI_HELP:
             return DispatchResult("Comandos disponibles: estado, ayuda, salir")
@@ -61,16 +97,9 @@ class CommandDispatcher:
         if decision.target is RouteTarget.UNKNOWN:
             return DispatchResult("Todavía no sé hacer eso, pero lo voy a aprender.")
 
-        capability_input = CapabilityInput(
-            payload={"content": _request.content},
-            metadata={
-                "request_id": _request.request_id,
-                "source": _request.source,
-            },
-        )
         capability_result = self._capability_runtime.execute(
             decision.target.value,
-            capability_input,
+            invocation,
         )
 
         if not capability_result.success:

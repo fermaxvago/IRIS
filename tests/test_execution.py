@@ -17,6 +17,7 @@ from iris.capabilities import (
     CapabilityResult,
     CapabilityRuntime,
 )
+from iris.context import ContextBudget, ContextSnapshot, ResolutionStatus
 from iris.core import Request
 from iris.dispatch import DispatchResult
 from iris.execution import (
@@ -76,7 +77,7 @@ from iris.orchestrator import (
     OrchestrationReason,
     OrchestrationTarget,
 )
-from iris.router import RouteTarget
+from iris.router import RouteDecision, RouteTarget
 from iris.work_identity import RequestWorkReference, WorkSubject, WorkSubjectKind
 
 NOW = datetime(2026, 9, 25, 18, tzinfo=UTC)
@@ -84,10 +85,23 @@ LATER = NOW + timedelta(seconds=1)
 GLOBAL = MemoryScope(ScopeKind.GLOBAL)
 
 
-def request_subject_id(request_id: str = "request-1") -> str:
-    return WorkSubject(
-        WorkSubjectKind.REQUEST, RequestWorkReference(request_id)
-    ).subject_id
+def request_subject(request_id: str = "request-1") -> WorkSubject:
+    return WorkSubject(WorkSubjectKind.REQUEST, RequestWorkReference(request_id))
+
+
+def context_for(
+    subject: WorkSubject,
+    *,
+    snapshot_id: str = "context-1",
+) -> ContextSnapshot:
+    return ContextSnapshot(
+        snapshot_id,
+        subject,
+        NOW - timedelta(seconds=1),
+        ContextBudget(0),
+        (),
+        ResolutionStatus.RESOLVED,
+    )
 
 
 def need_for(
@@ -115,6 +129,8 @@ def need_for(
 def decision_for(
     target: OrchestrationTarget,
     *,
+    subject: WorkSubject | None = None,
+    context_snapshot_id: str = "context-1",
     capability_id: str | None = "test.echo",
     memory_operation: MemoryOperation = MemoryOperation.QUERY,
 ) -> OrchestrationDecision:
@@ -129,11 +145,18 @@ def decision_for(
         capability_id=capability_id,
         memory_operation=memory_operation,
     )
+    owner = request_subject() if subject is None else subject
+    compatibility_request_id = (
+        owner.reference.request_id
+        if owner.kind is WorkSubjectKind.REQUEST
+        and isinstance(owner.reference, RequestWorkReference)
+        else None
+    )
     return OrchestrationDecision(
         decision_id="decision-1",
-        subject_id=request_subject_id(),
-        request_id="request-1",
-        context_snapshot_id="context-1",
+        subject_id=owner.subject_id,
+        request_id=compatibility_request_id,
+        context_snapshot_id=context_snapshot_id,
         target=target,
         reason=reason,
         created_at=NOW,
@@ -142,7 +165,19 @@ def decision_for(
     )
 
 
-def terminal_decision(target: OrchestrationTarget) -> OrchestrationDecision:
+def terminal_decision(
+    target: OrchestrationTarget,
+    *,
+    subject: WorkSubject | None = None,
+    context_snapshot_id: str = "context-1",
+) -> OrchestrationDecision:
+    owner = request_subject() if subject is None else subject
+    compatibility_request_id = (
+        owner.reference.request_id
+        if owner.kind is WorkSubjectKind.REQUEST
+        and isinstance(owner.reference, RequestWorkReference)
+        else None
+    )
     if target is OrchestrationTarget.CLARIFY:
         blocker = ContextBlocker(
             kind="task",
@@ -153,9 +188,9 @@ def terminal_decision(target: OrchestrationTarget) -> OrchestrationDecision:
         )
         return OrchestrationDecision(
             decision_id="decision-1",
-            subject_id=request_subject_id(),
-            request_id="request-1",
-            context_snapshot_id="context-1",
+            subject_id=owner.subject_id,
+            request_id=compatibility_request_id,
+            context_snapshot_id=context_snapshot_id,
             target=target,
             reason=OrchestrationReason.CONTEXT_AMBIGUOUS,
             created_at=NOW,
@@ -164,9 +199,9 @@ def terminal_decision(target: OrchestrationTarget) -> OrchestrationDecision:
         )
     return OrchestrationDecision(
         decision_id="decision-1",
-        subject_id=request_subject_id(),
-        request_id="request-1",
-        context_snapshot_id="context-1",
+        subject_id=owner.subject_id,
+        request_id=compatibility_request_id,
+        context_snapshot_id=context_snapshot_id,
         target=target,
         reason=OrchestrationReason.COMPOSITE_HANDLING_REQUIRED,
         created_at=NOW,
@@ -176,7 +211,12 @@ def terminal_decision(target: OrchestrationTarget) -> OrchestrationDecision:
 
 def input_for(target: OrchestrationTarget) -> object:
     if target is OrchestrationTarget.SYSTEM:
-        return SystemExecutionInput(Request("ayuda", "test", request_id="request-1"))
+        return SystemExecutionInput(
+            CapabilityInput(
+                payload={"content": "ayuda"},
+                metadata={"source": "test"},
+            )
+        )
     if target is OrchestrationTarget.MEMORY:
         return MemoryExecutionInput(query=MemoryQuery())
     if target is OrchestrationTarget.CAPABILITY:
@@ -189,13 +229,27 @@ def input_for(target: OrchestrationTarget) -> object:
 def execution_request(
     target: OrchestrationTarget,
     *,
+    subject: WorkSubject | None = None,
+    context: ContextSnapshot | None = None,
     decision: OrchestrationDecision | None = None,
     execution_input: object | None = None,
 ) -> ExecutionRequest:
-    selected = decision if decision is not None else decision_for(target)
+    owner = request_subject() if subject is None else subject
+    current_context = context_for(owner) if context is None else context
+    selected = (
+        decision
+        if decision is not None
+        else decision_for(
+            target,
+            subject=owner,
+            context_snapshot_id=current_context.snapshot_id,
+        )
+    )
     supplied = input_for(target) if execution_input is None else execution_input
     return ExecutionRequest(
         execution_id="execution-1",
+        subject=owner,
+        context=current_context,
         decision=selected,
         created_at=NOW,
         execution_input=supplied,  # type: ignore[arg-type]
@@ -287,9 +341,17 @@ def test_coordinator_dispatches_only_selected_handler_once(
 )
 def test_terminal_decisions_never_invoke_handlers(target: OrchestrationTarget) -> None:
     handler = RecordingHandler(OrchestrationTarget.CAPABILITY)
+    subject = request_subject()
+    context = context_for(subject)
     request = ExecutionRequest(
         execution_id="execution-1",
-        decision=terminal_decision(target),
+        subject=subject,
+        context=context,
+        decision=terminal_decision(
+            target,
+            subject=subject,
+            context_snapshot_id=context.snapshot_id,
+        ),
         created_at=NOW,
     )
 
@@ -370,7 +432,8 @@ def test_execution_models_are_immutable_serializable_and_traceable() -> None:
     trace = result.to_trace()
     request_trace = request.to_trace()
 
-    assert trace["request_id"] == "request-1"
+    assert trace["subject_id"] == request.subject.subject_id
+    assert "request_id" not in trace
     assert trace["context_snapshot_id"] == "context-1"
     assert trace["decision_id"] == "decision-1"
     assert trace["execution_id"] == "execution-1"
@@ -385,53 +448,61 @@ def test_execution_models_are_immutable_serializable_and_traceable() -> None:
 
 
 def test_time_and_linkage_validation() -> None:
-    decision = decision_for(OrchestrationTarget.SYSTEM)
+    subject = request_subject()
+    context = context_for(subject)
+    decision = decision_for(
+        OrchestrationTarget.SYSTEM,
+        subject=subject,
+        context_snapshot_id=context.snapshot_id,
+    )
     with pytest.raises(ValueError, match="timezone-aware"):
         ExecutionRequest(
             "execution-1",
+            subject,
+            context,
             decision,
             datetime(2026, 9, 25),
-            SystemExecutionInput(Request("ayuda", "test", request_id="request-1")),
+            SystemExecutionInput(),
         )
     with pytest.raises(ValueError, match="predate"):
         ExecutionRequest(
             "execution-1",
+            subject,
+            context,
             decision,
             NOW - timedelta(seconds=1),
-            SystemExecutionInput(Request("ayuda", "test", request_id="request-1")),
+            SystemExecutionInput(),
         )
-    with pytest.raises(ValueError, match="does not match"):
+    with pytest.raises(TypeError, match="SystemExecutionInput"):
         execution_request(
             OrchestrationTarget.SYSTEM,
-            execution_input=SystemExecutionInput(
-                Request("ayuda", "test", request_id="different")
-            ),
+            execution_input=CapabilityExecutionInput(),
         )
     with pytest.raises(ValueError, match="completed_at"):
         ExecutionResult(
-            "execution-1",
-            "decision-1",
-            "request-1",
-            "context-1",
-            OrchestrationTarget.CAPABILITY,
-            OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING,
-            ExecutionStatus.SUCCEEDED,
-            "test.handler",
-            LATER,
-            NOW,
+            execution_id="execution-1",
+            subject_id=subject.subject_id,
+            decision_id="decision-1",
+            context_snapshot_id="context-1",
+            target=OrchestrationTarget.CAPABILITY,
+            decision_reason=OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING,
+            status=ExecutionStatus.SUCCEEDED,
+            handler_reference="test.handler",
+            started_at=LATER,
+            completed_at=NOW,
         )
     with pytest.raises(ValueError, match="incompatible"):
         ExecutionResult(
-            "execution-1",
-            "decision-1",
-            "request-1",
-            "context-1",
-            OrchestrationTarget.CAPABILITY,
-            OrchestrationReason.INTELLIGENCE_REQUIRED,
-            ExecutionStatus.SUCCEEDED,
-            "test.handler",
-            NOW,
-            LATER,
+            execution_id="execution-1",
+            subject_id=subject.subject_id,
+            decision_id="decision-1",
+            context_snapshot_id="context-1",
+            target=OrchestrationTarget.CAPABILITY,
+            decision_reason=OrchestrationReason.INTELLIGENCE_REQUIRED,
+            status=ExecutionStatus.SUCCEEDED,
+            handler_reference="test.handler",
+            started_at=NOW,
+            completed_at=LATER,
         )
 
 
@@ -451,35 +522,45 @@ def test_time_and_linkage_validation() -> None:
 def test_memory_input_accepts_only_exact_operation_operands(
     operation: MemoryOperation, execution_input: MemoryExecutionInput
 ) -> None:
-    request = ExecutionRequest(
-        "execution-1",
-        decision_for(OrchestrationTarget.MEMORY, memory_operation=operation),
-        NOW,
-        execution_input,
+    request = execution_request(
+        OrchestrationTarget.MEMORY,
+        decision=decision_for(
+            OrchestrationTarget.MEMORY,
+            memory_operation=operation,
+        ),
+        execution_input=execution_input,
     )
     assert request.execution_input is execution_input
 
 
 def test_memory_input_rejects_impossible_operand_combination() -> None:
     with pytest.raises(ValueError, match="requires exactly"):
-        ExecutionRequest(
-            "execution-1",
-            decision_for(
+        execution_request(
+            OrchestrationTarget.MEMORY,
+            decision=decision_for(
                 OrchestrationTarget.MEMORY,
                 memory_operation=MemoryOperation.STORE,
             ),
-            NOW,
-            MemoryExecutionInput(memory_id="unrelated", candidate=candidate()),
+            execution_input=MemoryExecutionInput(
+                memory_id="unrelated", candidate=candidate()
+            ),
         )
 
 
 @dataclass
 class FakeDispatcher:
-    calls: list[tuple[Request, object]] = field(default_factory=list)
+    calls: list[tuple[RouteDecision, CapabilityInput]] = field(default_factory=list)
 
-    def dispatch(self, request: Request, decision: object) -> DispatchResult:
-        self.calls.append((request, decision))
+    def dispatch_route(
+        self,
+        decision: RouteDecision,
+        invocation: CapabilityInput,
+    ) -> DispatchResult:
+        self.calls.append((decision, invocation))
         return DispatchResult("help", exit_requested=False)
+
+    def dispatch(self, request: Request, decision: RouteDecision) -> DispatchResult:
+        raise AssertionError("SYSTEM execution must use neutral dispatch_route")
 
 
 def test_system_handler_reuses_existing_dispatcher_once() -> None:
@@ -610,10 +691,12 @@ def test_unsatisfied_intelligence_route_does_not_invoke_runtime_or_fallback() ->
     need = HandlingNeed(
         "need-1", HandlingKind.INTELLIGENCE, intelligence_need=required_local
     )
+    subject = request_subject()
+    context = context_for(subject)
     decision = OrchestrationDecision(
         decision_id="decision-1",
-        subject_id=request_subject_id(),
-        context_snapshot_id="context-1",
+        subject_id=subject.subject_id,
+        context_snapshot_id=context.snapshot_id,
         target=OrchestrationTarget.INTELLIGENCE,
         reason=OrchestrationReason.INTELLIGENCE_REQUIRED,
         created_at=NOW,
@@ -625,6 +708,8 @@ def test_unsatisfied_intelligence_route_does_not_invoke_runtime_or_fallback() ->
     handler = IntelligenceExecutionHandler(IntelligenceRouter(), runtime)
     request = ExecutionRequest(
         "execution-1",
+        subject,
+        context,
         decision,
         NOW,
         IntelligenceExecutionInput(
@@ -649,10 +734,12 @@ def test_degraded_intelligence_route_remains_executable() -> None:
     need = HandlingNeed(
         "need-1", HandlingKind.INTELLIGENCE, intelligence_need=preferred
     )
+    subject = request_subject()
+    context = context_for(subject)
     decision = OrchestrationDecision(
         decision_id="decision-1",
-        subject_id=request_subject_id(),
-        context_snapshot_id="context-1",
+        subject_id=subject.subject_id,
+        context_snapshot_id=context.snapshot_id,
         target=OrchestrationTarget.INTELLIGENCE,
         reason=OrchestrationReason.INTELLIGENCE_REQUIRED,
         created_at=NOW,
@@ -663,6 +750,8 @@ def test_degraded_intelligence_route_remains_executable() -> None:
     runtime = RecordingIntelligenceRuntime()
     request = ExecutionRequest(
         "execution-1",
+        subject,
+        context,
         decision,
         NOW,
         IntelligenceExecutionInput("explain", (resource(),)),
@@ -699,11 +788,10 @@ def test_memory_handler_uses_only_explicit_operation_with_real_service(
             OrchestrationTarget.MEMORY,
             memory_operation=MemoryOperation.RECALL,
         )
-        request = ExecutionRequest(
-            "execution-1",
-            decision,
-            NOW,
-            MemoryExecutionInput(memory_id=stored.id),
+        request = execution_request(
+            OrchestrationTarget.MEMORY,
+            decision=decision,
+            execution_input=MemoryExecutionInput(memory_id=stored.id),
         )
 
         result = ExecutionCoordinator((handler,), clock=lambda: LATER).execute(request)
@@ -775,9 +863,17 @@ def test_output_and_failure_reject_nonserializable_or_malformed_values() -> None
     with pytest.raises(TypeError, match="ExecutionStatus"):
         HandlerOutcome("failed")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="execution_id"):
+        subject = request_subject()
+        context = context_for(subject)
         ExecutionRequest(
             " ",
-            decision_for(OrchestrationTarget.CAPABILITY),
+            subject,
+            context,
+            decision_for(
+                OrchestrationTarget.CAPABILITY,
+                subject=subject,
+                context_snapshot_id=context.snapshot_id,
+            ),
             NOW,
             CapabilityExecutionInput(),
         )
@@ -790,11 +886,10 @@ def test_memory_domain_rejection_is_structured(tmp_path: Path) -> None:
             OrchestrationTarget.MEMORY,
             memory_operation=MemoryOperation.FORGET,
         )
-        request = ExecutionRequest(
-            "execution-1",
-            decision,
-            NOW,
-            MemoryExecutionInput(memory_id="missing-memory"),
+        request = execution_request(
+            OrchestrationTarget.MEMORY,
+            decision=decision,
+            execution_input=MemoryExecutionInput(memory_id="missing-memory"),
         )
 
         result = ExecutionCoordinator((handler,), clock=lambda: LATER).execute(request)

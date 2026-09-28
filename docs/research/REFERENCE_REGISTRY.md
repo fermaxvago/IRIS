@@ -155,7 +155,8 @@ provenance record, not legal advice.
   intelligence execution; model/resource routing; tools.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
+  WP018.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its local-first agent primitives and learning/execution
@@ -185,9 +186,15 @@ provenance record, not legal advice.
   ToolExecutor dispatch and a multi-turn tool loop. IRIS retained a typed
   WorkSubject/Context/HandlingNeed binding but rejected dispatch, execution,
   event emission, and iteration inside Orchestration. Analysis outcome:
-  `REJECTED_PATTERN`.
+  `REJECTED_PATTERN`. WP018 reverified the current Query Flow documentation on
+  2026-09-28. Its explicit tool-call dispatch through `ToolExecutor`, followed
+  by a tool result and another inference turn, supported an explicit
+  invocation/result boundary; IRIS adopted neither the event bus nor the
+  multi-turn tool loop. Analysis outcomes: `INFLUENCED` for the discrete
+  invocation/result separation and `REJECTED_PATTERN` for automatic iteration.
 - **Known changes:** Not recorded.
-- **Influenced decisions:** Not recorded.
+- **Influenced decisions:** WP018 keeps an explicit invocation/result boundary
+  while leaving result-driven model iteration outside the Execution layer.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP013 rejects an agent/tool, scheduled, or continuous
   loop as the foundational PlanRun control API; one call produces one decision
@@ -195,7 +202,9 @@ provenance record, not legal advice.
   detail or execution. WP016 rejects automatic agent-runtime context enrichment
   as a replacement for explicit evidence submission and bounded selection.
   WP017 rejects a tool-executing, event-emitting, multi-turn agent loop as the
-  Orchestration contract; one call still returns one inert decision.
+  Orchestration contract; one call still returns one inert decision. WP018
+  rejects tool-result-to-model iteration, event publication, and trace
+  persistence inside the single-call Execution foundation.
 - **License/provenance notes:** Repository declares Apache License 2.0 in the
   root `LICENSE` file. No code or assets incorporated into IRIS.
 - **General notes:** Registered as a research reference only.
@@ -209,7 +218,8 @@ provenance record, not legal advice.
   multiple devices; future IRIS Mesh concepts.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
+  WP018.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -241,6 +251,12 @@ provenance record, not legal advice.
   boundaries reinforced that current work identity, contextual observation,
   and runtime execution are distinct. No gateway, session, routing, or
   execution runtime was adopted. Analysis outcome: `INFLUENCED`.
+  WP018 reverified the current session-tool documentation on 2026-09-28. Its
+  distinct stable session key, accepted background-run ID, active-run route,
+  and later completion reporting reinforced that longer-lived work scope and a
+  concrete execution instance need separate identities. Background sessions,
+  queues, timeouts, cancellation, and recovery were not adopted. Analysis
+  outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
@@ -249,7 +265,8 @@ provenance record, not legal advice.
   snapshot construction explicit and ephemeral instead of adopting a session
   context-engine lifecycle. WP017 binds each orchestration decision to a stable
   subject identity and an exact ContextSnapshot without adopting session or
-  gateway identity as either one.
+  gateway identity as either one. WP018 keeps stable subject identity separate
+  from execution-attempt identity and does not adopt a background runtime.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Root `LICENSE` declares MIT. The repository also
@@ -334,7 +351,8 @@ provenance record, not legal advice.
   checkpoints; durable execution.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
+  WP018.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -366,7 +384,13 @@ provenance record, not legal advice.
   typed orchestration binding whose subject, exact context snapshot, semantic
   needs, and availability remain separate inputs. No graph runtime, node
   execution, or checkpoint behavior was adopted. Analysis outcome:
-  `INFLUENCED`.
+  `INFLUENCED`. WP018 reverified the current Graph API and fault-tolerance
+  documentation on 2026-09-28. The documented distinction among run identity,
+  node attempt, task result, and state update reinforced IRIS's separate
+  subject/decision/execution lineage. LangGraph's retries, timeouts,
+  checkpointer-backed replay avoidance, and node-driven state progression were
+  deliberately postponed. Analysis outcomes: `INFLUENCED` and
+  `REJECTED_PATTERN` for those runtime mechanisms in WP018.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 separates operational Run snapshots from
   checkpoints, persistence, interrupts, and autonomous graph execution. WP013
@@ -376,7 +400,9 @@ provenance record, not legal advice.
   subject identity from mutable workflow state and original input. WP016 keeps
   WorkSubject-owned evidence Context separate from PlanRun state and runtime
   dependency configuration. WP017 keeps subject identity separate from the
-  exact contextual observation and from the decision instance identity.
+  exact contextual observation and from the decision instance identity. WP018
+  keeps one explicit execution attempt separate from work identity and refuses
+  to claim global exactly-once behavior without persistence.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
@@ -394,7 +420,8 @@ provenance record, not legal advice.
   observability; human-in-the-loop; durability.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
+  WP018.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -428,7 +455,13 @@ provenance record, not legal advice.
   actually invokes executors. Typed compatibility influenced the explicit
   WorkSubject/Context/HandlingNeed binding; IRIS stopped before executor
   invocation, routing runtime, streaming, or durability. Analysis outcome:
-  `INFLUENCED`.
+  `INFLUENCED`. WP018 reverified current executor, workflow-execution,
+  checkpoint, and durable-extension documentation on 2026-09-28. Typed
+  executor input/output and distinct executor identity influenced the rich
+  validation envelope plus lightweight result lineage. Checkpoints, durable
+  cached completion, event streaming, and automatic workflow progression were
+  reviewed but postponed. Analysis outcomes: `INFLUENCED` and
+  `REVIEWED`/postponed for durability.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -441,7 +474,9 @@ provenance record, not legal advice.
   than treating the initiating input as every downstream unit's identity.
   WP016 keeps subject-scoped Context distinct from shared workflow state and
   runtime operations. WP017 makes OrchestrationInput a typed binding boundary
-  while keeping executor invocation and workflow progression outside it.
+  while keeping executor invocation and workflow progression outside it. WP018
+  adds a typed side-effect binding and result lineage without adopting the
+  surrounding workflow runtime, checkpoints, or automatic advancement.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
