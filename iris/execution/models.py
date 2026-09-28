@@ -10,7 +10,7 @@ from types import MappingProxyType
 from typing import TypeAlias, cast
 
 from iris.capabilities import CapabilityInput
-from iris.core import Request
+from iris.context import ContextSnapshot
 from iris.intelligence import IntelligenceResource
 from iris.memory import MemoryCandidate, MemoryQuery
 from iris.memory.models import identifier, utc_time, vocabulary
@@ -19,7 +19,9 @@ from iris.orchestrator import (
     OrchestrationDecision,
     OrchestrationReason,
     OrchestrationTarget,
+    validate_orchestration_decision_current,
 )
+from iris.work_identity import WorkSubject
 
 JsonScalar: TypeAlias = str | int | float | bool | None
 JsonValue: TypeAlias = JsonScalar | tuple["JsonValue", ...] | Mapping[str, "JsonValue"]
@@ -134,13 +136,13 @@ class ExecutionFailure:
 
 @dataclass(frozen=True, slots=True)
 class SystemExecutionInput:
-    """Original request needed by the existing deterministic dispatcher."""
+    """Request-neutral operands for one already-selected system route."""
 
-    request: Request
+    invocation: CapabilityInput = field(default_factory=CapabilityInput)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.request, Request):
-            raise TypeError("request must be a Request")
+        if not isinstance(self.invocation, CapabilityInput):
+            raise TypeError("invocation must be a CapabilityInput")
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,20 +216,35 @@ _INPUT_BY_TARGET = {
 
 @dataclass(frozen=True, slots=True)
 class ExecutionRequest:
-    """One explicit request to cross the execution side-effect boundary."""
+    """Rich binding required to cross the execution side-effect boundary."""
 
     execution_id: str
+    subject: WorkSubject
+    context: ContextSnapshot
     decision: OrchestrationDecision
     created_at: datetime
     execution_input: ExecutionInput | None = None
 
     def __post_init__(self) -> None:
         identifier(self.execution_id, "execution_id")
+        if not isinstance(self.subject, WorkSubject):
+            raise TypeError("subject must be a WorkSubject")
+        if not isinstance(self.context, ContextSnapshot):
+            raise TypeError("context must be a ContextSnapshot")
         if not isinstance(self.decision, OrchestrationDecision):
             raise TypeError("decision must be an OrchestrationDecision")
-        if self.decision.request_id is None:
+        validate_orchestration_decision_current(
+            self.decision,
+            self.subject,
+            self.context,
+        )
+        if self.execution_id in {
+            self.subject.subject_id,
+            self.context.snapshot_id,
+            self.decision.decision_id,
+        }:
             raise ValueError(
-                "execution remains limited to REQUEST orchestration decisions"
+                "execution, subject, context, and decision identities must be distinct"
             )
         created_at = utc_time(self.created_at, "created_at")
         object.__setattr__(self, "created_at", created_at)
@@ -248,11 +265,6 @@ class ExecutionRequest:
         requirement = self.decision.requirement
         if requirement is None:
             raise ValueError("executable decisions require a handling requirement")
-        if self.decision.target is OrchestrationTarget.SYSTEM:
-            system_input = self.execution_input
-            assert isinstance(system_input, SystemExecutionInput)
-            if system_input.request.request_id != self.decision.request_id:
-                raise ValueError("system request identifier does not match decision")
         if self.decision.target is OrchestrationTarget.MEMORY:
             memory_input = self.execution_input
             assert isinstance(memory_input, MemoryExecutionInput)
@@ -265,8 +277,8 @@ class ExecutionRequest:
         if isinstance(self.execution_input, SystemExecutionInput):
             input_trace = {
                 "kind": "system",
-                "request_id": self.execution_input.request.request_id,
-                "source": self.execution_input.request.source,
+                "payload_keys": sorted(self.execution_input.invocation.payload),
+                "metadata_keys": sorted(self.execution_input.invocation.metadata),
             }
         elif isinstance(self.execution_input, MemoryExecutionInput):
             input_trace = {
@@ -296,6 +308,8 @@ class ExecutionRequest:
             }
         return {
             "execution_id": self.execution_id,
+            "subject_id": self.subject.subject_id,
+            "context_snapshot_id": self.context.snapshot_id,
             "created_at": self.created_at.isoformat(),
             "decision": self.decision.to_trace(),
             "execution_input": input_trace,
@@ -361,8 +375,8 @@ class ExecutionResult:
     """Observable result of at most one selected-handler invocation."""
 
     execution_id: str
+    subject_id: str
     decision_id: str
-    request_id: str
     context_snapshot_id: str
     target: OrchestrationTarget
     decision_reason: OrchestrationReason
@@ -377,11 +391,25 @@ class ExecutionResult:
     def __post_init__(self) -> None:
         for value, name in (
             (self.execution_id, "execution_id"),
+            (self.subject_id, "subject_id"),
             (self.decision_id, "decision_id"),
-            (self.request_id, "request_id"),
             (self.context_snapshot_id, "context_snapshot_id"),
         ):
             identifier(value, name)
+        if (
+            len(
+                {
+                    self.execution_id,
+                    self.subject_id,
+                    self.decision_id,
+                    self.context_snapshot_id,
+                }
+            )
+            != 4
+        ):
+            raise ValueError(
+                "execution, subject, decision, and context identities must be distinct"
+            )
         if not isinstance(self.target, OrchestrationTarget):
             raise TypeError("target must be an OrchestrationTarget")
         if not isinstance(self.decision_reason, OrchestrationReason):
@@ -436,8 +464,8 @@ class ExecutionResult:
 
         return {
             "execution_id": self.execution_id,
+            "subject_id": self.subject_id,
             "decision_id": self.decision_id,
-            "request_id": self.request_id,
             "context_snapshot_id": self.context_snapshot_id,
             "target": self.target.value,
             "decision_reason": self.decision_reason.value,

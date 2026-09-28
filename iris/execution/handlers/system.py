@@ -1,7 +1,7 @@
 """Adapter from SYSTEM decisions to the existing deterministic dispatcher."""
 
 from iris.capabilities import CapabilityNotFoundError
-from iris.dispatch import Dispatcher
+from iris.dispatch import RouteDispatcher
 from iris.execution.models import (
     ExecutionFailure,
     ExecutionOutput,
@@ -20,7 +20,7 @@ class SystemExecutionHandler:
     target = OrchestrationTarget.SYSTEM
     handler_reference = "system.dispatcher"
 
-    def __init__(self, dispatcher: Dispatcher) -> None:
+    def __init__(self, dispatcher: RouteDispatcher) -> None:
         self._dispatcher = dispatcher
 
     def execute(self, request: ExecutionRequest) -> HandlerOutcome:
@@ -36,7 +36,7 @@ class SystemExecutionHandler:
             metadata={"decision_id": request.decision.decision_id},
         )
         try:
-            result = self._dispatcher.dispatch(execution_input.request, route)
+            result = self._dispatcher.dispatch_route(route, execution_input.invocation)
         except CapabilityNotFoundError as exc:
             return HandlerOutcome(
                 status=ExecutionStatus.REJECTED,

@@ -36,7 +36,7 @@ _TERMINAL_TARGETS = frozenset(
 
 
 class ExecutionCoordinator:
-    """Invoke the handler selected by WP009 once, record the result, then stop."""
+    """Invoke at most one selected handler per call, record, then stop."""
 
     def __init__(
         self,
@@ -136,16 +136,11 @@ class ExecutionCoordinator:
             raise ExecutionContractError("coordinator metadata must be a mapping")
         typed_metadata = dict(metadata.items())
         decision = request.decision
-        request_id = decision.request_id
-        if request_id is None:  # pragma: no cover - guarded by ExecutionRequest
-            raise ExecutionContractError(
-                "execution requires a REQUEST orchestration decision"
-            )
         return ExecutionResult(
             execution_id=request.execution_id,
+            subject_id=request.subject.subject_id,
             decision_id=decision.decision_id,
-            request_id=request_id,
-            context_snapshot_id=decision.context_snapshot_id,
+            context_snapshot_id=request.context.snapshot_id,
             target=decision.target,
             decision_reason=decision.reason,
             status=status,

@@ -202,24 +202,37 @@ def test_same_semantic_input_preserves_selection_not_decision_instance_identity(
     )
 
 
-def test_plan_step_decision_cannot_enter_request_only_execution() -> None:
+def test_plan_step_decision_can_enter_subject_scoped_execution() -> None:
     subject = plan_step_subject()
-    decision = orchestrator().decide(input_for(subject))
+    orchestration_input = input_for(subject)
+    decision = orchestrator().decide(orchestration_input)
 
-    with pytest.raises(ValueError, match="limited to REQUEST"):
-        ExecutionRequest("execution-1", decision, decision.created_at)
+    execution = ExecutionRequest(
+        "execution-1",
+        subject,
+        orchestration_input.context,
+        decision,
+        decision.created_at,
+        SystemExecutionInput(),
+    )
+
+    assert execution.subject is subject
+    assert execution.context is orchestration_input.context
 
 
 def test_request_subject_retains_the_existing_request_execution_seam() -> None:
     request = Request("status", "test", request_id="request-1")
     subject = work_subject_from_request(request)
-    decision = orchestrator().decide(input_for(subject))
+    orchestration_input = input_for(subject)
+    decision = orchestrator().decide(orchestration_input)
 
     execution = ExecutionRequest(
         "execution-1",
+        subject,
+        orchestration_input.context,
         decision,
         decision.created_at,
-        SystemExecutionInput(request),
+        SystemExecutionInput(),
     )
 
     assert decision.subject_id == subject.subject_id
