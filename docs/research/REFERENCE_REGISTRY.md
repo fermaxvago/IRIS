@@ -156,7 +156,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019.
+  WP018; WP019; WP020.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its local-first agent primitives and learning/execution
@@ -198,12 +198,20 @@ provenance record, not legal advice.
   into the agent loop. This influenced IRIS's explicit raw-result evidence
   boundary; event publication, trace persistence, and tool-result-to-model
   iteration were deliberately excluded. Analysis outcomes: `INFLUENCED` and
-  `REJECTED_PATTERN`.
+  `REJECTED_PATTERN`. WP020 reverified the current Evaluations documentation on
+  2026-09-28. OpenJarvis separates dataset outputs from benchmark-specific
+  scorers and uses deterministic comparison for some tasks while other tasks
+  use LLM judges or deterministic-first fallbacks. This influenced IRIS's
+  replaceable evaluator contract and conservative deterministic baseline;
+  automatic LLM fallback, scoring runs, and mandatory numeric scores were
+  excluded. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP018 keeps an explicit invocation/result boundary
   while leaving result-driven model iteration outside the Execution layer.
   WP019 preserves structured execution facts in a separate observation before
-  any outcome interpretation.
+  any outcome interpretation. WP020 separates explicit evidence from a
+  replaceable evaluator and preserves evaluator provenance without adopting a
+  benchmark runtime.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP013 rejects an agent/tool, scheduled, or continuous
   loop as the foundational PlanRun control API; one call produces one decision
@@ -215,7 +223,8 @@ provenance record, not legal advice.
   rejects tool-result-to-model iteration, event publication, and trace
   persistence inside the single-call Execution foundation. WP019 likewise
   rejects an event bus and automatic agent continuation as part of evidence
-  recording.
+  recording. WP020 rejects automatic LLM-judge fallback and benchmark-driven
+  workflow progression.
 - **License/provenance notes:** Repository declares Apache License 2.0 in the
   root `LICENSE` file. No code or assets incorporated into IRIS.
 - **General notes:** Registered as a research reference only.
@@ -230,7 +239,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019.
+  WP018; WP019; WP020.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -272,7 +281,12 @@ provenance record, not legal advice.
   output as evidence for the requester to synthesize and states that child-run
   completion does not itself complete the requester's goal. This influenced
   the separation of raw execution observation from PlanStep/Goal outcome
-  judgment. Analysis outcome: `INFLUENCED`.
+  judgment. Analysis outcome: `INFLUENCED`. WP020 reverified the current
+  sub-agent completion model on 2026-09-28. A child run reports a result back
+  to its requester for review, while the requesting run remains a distinct
+  scope. This reinforced that completed execution evidence requires a separate
+  higher-level assessment and does not itself prove the parent outcome.
+  Analysis outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
@@ -284,7 +298,8 @@ provenance record, not legal advice.
   gateway identity as either one. WP018 keeps stable subject identity separate
   from execution-attempt identity and does not adopt a background runtime.
   WP019 records one execution attempt by its execution ID while keeping that
-  fact separate from work progress and goal completion.
+  fact separate from work progress and goal completion. WP020 keeps completion
+  evidence separate from an evaluator's PlanStep-level epistemic conclusion.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Root `LICENSE` declares MIT. The repository also
@@ -370,7 +385,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019.
+  WP018; WP019; WP020.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -415,7 +430,13 @@ provenance record, not legal advice.
   preserving raw execution evidence before interpretation. Automatic retries,
   checkpoint-backed recovery, error-handler state updates, and routing were
   rejected for the observation adapter. Analysis outcomes: `INFLUENCED` and
-  `REJECTED_PATTERN`.
+  `REJECTED_PATTERN`. WP020 reviewed current LangSmith evaluation documentation
+  in the LangGraph ecosystem on 2026-09-28. Its code evaluators,
+  reference-based comparisons, and LLM-as-judge evaluators demonstrate
+  replaceable evaluation mechanisms applied to recorded run outputs. IRIS
+  adopted only the evaluator separation: managed tracing, feedback attachment,
+  automatic evaluation, scoring, routing, and state mutation remain outside
+  WP020. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 separates operational Run snapshots from
   checkpoints, persistence, interrupts, and autonomous graph execution. WP013
@@ -429,10 +450,14 @@ provenance record, not legal advice.
   keeps one explicit execution attempt separate from work identity and refuses
   to claim global exactly-once behavior without persistence. WP019 uses
   execution-attempt identity as the observation source reference while leaving
-  state advancement to an explicit later reducer update.
+  state advancement to an explicit later reducer update. WP020 keeps
+  deterministic and model-backed evaluation as replaceable mechanisms while
+  leaving evidence selection and state progression outside the evaluator.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP019 rejects retry, checkpoint recovery, automatic
   state update, and error-handler routing inside execution evidence recording.
+  WP020 rejects attaching managed evaluation feedback to workflow state or
+  coupling assessment to retry/routing behavior.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
   file. Hosted or commercial offerings may have separate terms and are outside
   this repository-level review. No code or assets incorporated into IRIS.
@@ -449,7 +474,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-28
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019.
+  WP018; WP019; WP020.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -495,7 +520,13 @@ provenance record, not legal advice.
   events reinforced treating completion facts as observable data separate from
   workflow-level progression. IRIS did not adopt the event stream, custom event
   bus, checkpoints, or durable workflow runtime. Analysis outcomes:
-  `INFLUENCED` and `REVIEWED`/postponed for durability.
+  `INFLUENCED` and `REVIEWED`/postponed for durability. WP020 reverified the
+  current Agent Framework Evaluation documentation on 2026-09-28. Its distinct
+  `EvalItem`, evaluator, and aggregated result concepts, plus local custom
+  checks and Foundry-backed evaluators, influenced IRIS's provider-independent
+  evaluator contract and explicit evaluator reference. Foundry services,
+  aggregate scoring, mandatory pass/fail, and workflow advancement were not
+  adopted. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -512,7 +543,9 @@ provenance record, not legal advice.
   adds a typed side-effect binding and result lineage without adopting the
   surrounding workflow runtime, checkpoints, or automatic advancement. WP019
   records one raw completion result as evidence without equating an executor
-  event with PlanStep progress.
+  event with PlanStep progress. WP020 introduces a replaceable evaluator over
+  explicit canonical evidence while retaining an inert assessment result and
+  no progress transition.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`

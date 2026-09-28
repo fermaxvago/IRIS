@@ -37,6 +37,8 @@ IRIS 0.1 currently provides:
   failures, and an explicit side-effect boundary;
 - explicit adaptation of PLAN_STEP execution results into raw, append-only
   PlanRun observations without outcome interpretation or progress mutation;
+- immutable PlanStep outcome assessments over explicitly selected, canonical
+  PlanRun evidence, with a conservative replaceable evaluator;
 - immutable Goal, Plan, and PlanStep representations with explicit constraints,
   success criteria, assumptions, expected outcomes, and dependency validation;
 - a provider-independent Planner contract plus an explicit-rule deterministic
@@ -639,6 +641,41 @@ revision while leaving StepProgress and blockers unchanged. Recording evidence
 does not invoke execution, assess outcomes, mutate progress, retry, replan,
 or enter a control loop.
 
+## Step outcome assessment foundation
+
+`iris.outcome_assessment` evaluates an explicit tuple of already-recorded
+`PlanObservation` values against the canonical `PlanStep` definition and
+returns one inert `StepOutcomeAssessment`, then stops:
+
+```text
+Plan + PlanRun + PlanStep + explicit PlanObservation values
+    → StepOutcomeEvaluator
+    → StepOutcomeAssessment
+    → STOP
+```
+
+The assessment records independent assessment identity, Plan/Run/step lineage,
+the observed Run revision, exact evidence IDs, evaluator provenance, UTC time,
+an epistemic status, and immutable structured details. Evidence must belong to
+the same Run and step, must already be present in the immutable PlanRun, and
+must equal the canonical recorded observation rather than merely reusing its
+ID. Evidence selection remains the caller's responsibility; the evaluator does
+not scan the Run to choose evidence.
+
+The initial `ConservativeStepOutcomeEvaluator` is deliberately abstaining. An
+empty evidence tuple yields `INSUFFICIENT_EVIDENCE`; valid evidence for which no
+explicit deterministic rule exists yields `INDETERMINATE`. It never treats an
+execution's `SUCCEEDED` status as proof that the expected outcome was achieved,
+and it never treats `FAILED`, `REJECTED`, or `NOT_EXECUTED` as proof that the
+outcome was not achieved. `SATISFIED` and `NOT_SATISFIED` remain supported by
+the model and replaceable evaluator contract for future explicit verifiers.
+
+Assessment is epistemic, not operational policy. WP020 does not create a
+`StepProgressUpdate`, mutate or persist PlanRun, invoke the reducer, derive
+availability or Run condition, evaluate Goal success, call Intelligence, chain
+evaluators, retry, replan, or select subsequent work. The stored Run revision
+is audit lineage only; WP020 introduces no assessment-currentness rule.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -688,6 +725,8 @@ The modules below define the current foundation and future boundaries:
 - `iris.execution_observation`: side-effect-free PLAN_STEP ExecutionResult
   adaptation into raw PlanObservation evidence, with local duplicate-evidence
   rejection and no outcome assessment or PlanRun mutation.
+- `iris.outcome_assessment`: replaceable PlanStep evidence evaluators and
+  immutable epistemic assessments, with no progress policy or state mutation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
