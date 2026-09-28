@@ -27,10 +27,10 @@ IRIS 0.1 currently provides:
 - structured `EXACT`, `DEGRADED`, and `UNSATISFIED` intelligence routes;
 - explicit local memory persistence through a domain service and versioned
   SQLite backend, with provenance, temporal validity, lifecycle and relations;
-- request-scoped, bounded Context snapshots built deterministically from
+- work-subject-scoped, bounded Context snapshots built deterministically from
   explicitly supplied, traceable evidence;
-- a deterministic single-step Orchestrator that selects a subsystem through
-  structured, traceable decisions;
+- a deterministic single-step Orchestrator that binds WorkSubject, exact
+  ContextSnapshot, explicit needs, and availability into traceable decisions;
 - a single-step Execution Coordinator with explicit handlers for system,
   memory, capability, and intelligence decisions;
 - immutable execution requests/results with end-to-end identity, structured
@@ -346,28 +346,31 @@ A derived subject never inherits its origin's Context—relevant evidence must b
 supplied again explicitly.
 
 Building a snapshot does not write Memory, mutate PlanRun, invoke providers or
-tools, choose actions, plan, grant authorization or construct an LLM prompt.
-The existing Orchestrator still consumes only Request-owned snapshots; a
-PLAN_STEP snapshot does not impersonate its Request origin. Generalized
-orchestration remains a separate future boundary.
+tools, choose actions, plan, grant authorization or construct an LLM prompt. A
+PLAN_STEP snapshot does not impersonate its Request origin; it can now enter
+Orchestration as its own operational subject.
 
 ## Orchestrator foundation
 
-`iris.orchestrator` implements one request-scoped `observe → decide → stop`
-step. An `OrchestrationInput` links one `Request` to its exact
-`ContextSnapshot`, explicit `HandlingNeed` values and caller-supplied
-`HandlerAvailability`. Mismatched request/context identities fail before a
-decision can be made. Availability is never discovered through the network,
-filesystem, provider registries or device state.
+`iris.orchestrator` implements one work-subject-scoped `observe → decide → stop`
+step. An `OrchestrationInput` binds one `WorkSubject` to an exact
+subject-owned `ContextSnapshot`, explicit `HandlingNeed` values and
+caller-supplied `HandlerAvailability`. Ownership is checked through canonical
+`subject_id`, so updated origin knowledge does not change identity and a root
+Request cannot stand in for a derived PLAN_STEP. Availability is never
+discovered through the network, filesystem, provider registries or device
+state.
 
 `DeterministicOrchestrationPolicy` produces exactly one immutable,
 provider-neutral `OrchestrationDecision`. Targets are `SYSTEM`, `MEMORY`,
 `CAPABILITY`, `INTELLIGENCE`, `CLARIFY` and `UNSATISFIED`. Structured reason
 codes, need IDs, snapshot identity and context issue references provide
-traceability without storing private model reasoning. The existing deterministic
-Router can supply a recognized system route; Intelligence needs are preserved
-for the separate Intelligence Router; capability IDs and Memory operation
-descriptors remain inputs for their established subsystems.
+traceability without storing private model reasoning. Each decision records
+canonical `subject_id` plus the exact `context_snapshot_id`; a pure validator
+rejects decisions used with another subject or snapshot. The existing
+deterministic Router can supply a recognized system route; Intelligence needs
+are preserved for the separate Intelligence Router; capability IDs and Memory
+operation descriptors remain inputs for their established subsystems.
 
 Context ambiguity, conflict or missing information blocks a decision only when
 the caller explicitly links that issue to the current need. Unrelated partial or
@@ -379,7 +382,11 @@ The Orchestrator coordinates IRIS; it does not replace the systems it
 coordinates. It does not execute capabilities, access Memory, invoke
 Intelligence, choose providers/models, infer authorization, plan, retry or
 construct prompts. Execution consumes its decisions through a separate
-boundary; iterative cognitive loops remain future work.
+boundary; WP010 remains intentionally Request-only. `request_id` is retained on
+REQUEST decisions solely as a non-canonical compatibility value, is absent for
+PLAN_STEP decisions even when their origin is a Request, and never appears in
+the canonical orchestration trace. Iterative cognitive loops remain future
+work.
 
 Memory tells IRIS what has been preserved. Context tells IRIS what is relevant
 now. The Orchestrator decides which subsystem should handle the next step.
@@ -546,7 +553,8 @@ adapter layer knows the established Request and Plan/PlanRun contracts.
 
 ## Execution foundation
 
-`iris.execution` implements `decide → execute once → observe result → stop`.
+`iris.execution` implements `decide → execute once → observe result → stop` for
+the existing REQUEST path only.
 An immutable `ExecutionRequest` links an independent execution ID to the exact
 request, Context snapshot, and orchestration decision identities. It also
 carries the explicit subsystem input that WP009 deliberately did not discover
@@ -607,9 +615,11 @@ The modules below define the current foundation and future boundaries:
 - `iris.memory`: IRIS-owned evidence models, `MemoryService`, backend-independent
   `MemoryStore`, SQLite persistence and the legacy WP001 `Memory` protocol;
 - `iris.context`: ephemeral candidates and evidence, deterministic bounded
-  selection, request-scoped snapshots and an explicit read-only Memory source;
-- `iris.orchestrator`: immutable handling needs, explicit availability,
-  deterministic single-step policy and traceable coordination decisions;
+  selection, WorkSubject-scoped snapshots and an explicit read-only Memory
+  source;
+- `iris.orchestrator`: immutable subject/context binding, handling needs,
+  explicit availability, deterministic single-step policy, currentness
+  validation, and traceable coordination decisions;
 - `iris.planning`: immutable goals and plans, provider-independent Planner
   contract, deterministic rule templates, typed outcomes and DAG validation;
 - `iris.plan_runs`: immutable runtime-state revisions, explicit atomic updates,

@@ -4,6 +4,8 @@ from iris.orchestrator.contracts import OrchestrationPolicy
 from iris.orchestrator.errors import (
     OrchestrationPolicyContractError,
     RequestContextMismatchError,
+    StaleOrchestrationDecisionError,
+    SubjectContextMismatchError,
 )
 from iris.orchestrator.models import (
     ContextBlocker,
@@ -19,6 +21,7 @@ from iris.orchestrator.models import (
 )
 from iris.orchestrator.orchestrator import Orchestrator
 from iris.orchestrator.policy import DeterministicOrchestrationPolicy
+from iris.orchestrator.validation import validate_orchestration_decision_current
 
 __all__ = [
     "ContextBlocker",
@@ -36,4 +39,7 @@ __all__ = [
     "OrchestrationTarget",
     "Orchestrator",
     "RequestContextMismatchError",
+    "StaleOrchestrationDecisionError",
+    "SubjectContextMismatchError",
+    "validate_orchestration_decision_current",
 ]

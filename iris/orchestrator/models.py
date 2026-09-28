@@ -7,11 +7,15 @@ from datetime import datetime
 from enum import StrEnum
 
 from iris.context import ContextSnapshot, UncertaintyReason
-from iris.core import Request
 from iris.intelligence.routing import IntelligenceNeed
 from iris.memory.models import MemoryScope, identifier, utc_time, vocabulary
-from iris.orchestrator.errors import RequestContextMismatchError
+from iris.orchestrator.errors import SubjectContextMismatchError
 from iris.router import RouteTarget
+from iris.work_identity.models import (
+    RequestWorkReference,
+    WorkSubject,
+    WorkSubjectKind,
+)
 
 
 class HandlingKind(StrEnum):
@@ -46,15 +50,19 @@ class OrchestrationTarget(StrEnum):
 
 
 class OrchestrationReason(StrEnum):
-    DETERMINISTIC_SYSTEM_REQUEST = "deterministic_system_request"
+    DETERMINISTIC_SYSTEM_HANDLING = "deterministic_system_handling"
     EXPLICIT_MEMORY_OPERATION = "explicit_memory_operation"
-    EXPLICIT_CAPABILITY_REQUEST = "explicit_capability_request"
+    EXPLICIT_CAPABILITY_HANDLING = "explicit_capability_handling"
     INTELLIGENCE_REQUIRED = "intelligence_required"
     CONTEXT_AMBIGUOUS = "context_ambiguous"
     CONTEXT_CONFLICTED = "context_conflicted"
     MISSING_REQUIRED_INFORMATION = "missing_required_information"
     NO_ADMISSIBLE_HANDLER = "no_admissible_handler"
     COMPOSITE_HANDLING_REQUIRED = "composite_handling_required"
+
+    # WP009 compatibility names; canonical values are work-subject-neutral.
+    DETERMINISTIC_SYSTEM_REQUEST = DETERMINISTIC_SYSTEM_HANDLING
+    EXPLICIT_CAPABILITY_REQUEST = EXPLICIT_CAPABILITY_HANDLING
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,19 +251,19 @@ def _blocker_matches_context(blocker: ContextBlocker, context: ContextSnapshot) 
 
 @dataclass(frozen=True, slots=True)
 class OrchestrationInput:
-    request: Request
+    subject: WorkSubject
     context: ContextSnapshot
     needs: tuple[HandlingNeed, ...]
     availability: HandlerAvailability
 
     def __post_init__(self) -> None:
-        if not isinstance(self.request, Request):
-            raise TypeError("request must be a Request")
+        if not isinstance(self.subject, WorkSubject):
+            raise TypeError("subject must be a WorkSubject")
         if not isinstance(self.context, ContextSnapshot):
             raise TypeError("context must be a ContextSnapshot")
-        if self.request.request_id != self.context.request_id:
-            raise RequestContextMismatchError(
-                "request and context snapshot identifiers do not match"
+        if self.subject.subject_id != self.context.subject_id:
+            raise SubjectContextMismatchError(
+                "subject and context snapshot identities do not match"
             )
         if not isinstance(self.needs, tuple) or any(
             not isinstance(need, HandlingNeed) for need in self.needs
@@ -306,9 +314,9 @@ class OrchestrationSelection:
 
 
 _REASONS_BY_TARGET = {
-    OrchestrationTarget.SYSTEM: {OrchestrationReason.DETERMINISTIC_SYSTEM_REQUEST},
+    OrchestrationTarget.SYSTEM: {OrchestrationReason.DETERMINISTIC_SYSTEM_HANDLING},
     OrchestrationTarget.MEMORY: {OrchestrationReason.EXPLICIT_MEMORY_OPERATION},
-    OrchestrationTarget.CAPABILITY: {OrchestrationReason.EXPLICIT_CAPABILITY_REQUEST},
+    OrchestrationTarget.CAPABILITY: {OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING},
     OrchestrationTarget.INTELLIGENCE: {OrchestrationReason.INTELLIGENCE_REQUIRED},
     OrchestrationTarget.CLARIFY: {
         OrchestrationReason.CONTEXT_AMBIGUOUS,
@@ -327,7 +335,7 @@ class OrchestrationDecision:
     """One observable decision. It does not execute the selected subsystem."""
 
     decision_id: str
-    request_id: str
+    subject_id: str
     context_snapshot_id: str
     target: OrchestrationTarget
     reason: OrchestrationReason
@@ -335,14 +343,29 @@ class OrchestrationDecision:
     need_ids: tuple[str, ...]
     requirement: HandlingNeed | None = None
     context_references: tuple[ContextBlocker, ...] = ()
+    request_id: str | None = None
 
     def __post_init__(self) -> None:
         for value, name in (
             (self.decision_id, "decision_id"),
-            (self.request_id, "request_id"),
+            (self.subject_id, "subject_id"),
             (self.context_snapshot_id, "context_snapshot_id"),
         ):
             identifier(value, name)
+        if len({self.decision_id, self.subject_id, self.context_snapshot_id}) != 3:
+            raise ValueError(
+                "decision, subject, and context snapshot identities must be distinct"
+            )
+        if self.request_id is not None:
+            identifier(self.request_id, "request_id")
+            request_subject = WorkSubject(
+                WorkSubjectKind.REQUEST,
+                RequestWorkReference(self.request_id),
+            )
+            if request_subject.subject_id != self.subject_id:
+                raise ValueError(
+                    "request_id compatibility must describe the decision subject"
+                )
         if not isinstance(self.target, OrchestrationTarget):
             raise TypeError("target must be an OrchestrationTarget")
         if not isinstance(self.reason, OrchestrationReason):
@@ -418,7 +441,7 @@ class OrchestrationDecision:
                 }
         return {
             "decision_id": self.decision_id,
-            "request_id": self.request_id,
+            "subject_id": self.subject_id,
             "context_snapshot_id": self.context_snapshot_id,
             "target": self.target.value,
             "reason": self.reason.value,

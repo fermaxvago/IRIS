@@ -136,10 +136,15 @@ class ExecutionCoordinator:
             raise ExecutionContractError("coordinator metadata must be a mapping")
         typed_metadata = dict(metadata.items())
         decision = request.decision
+        request_id = decision.request_id
+        if request_id is None:  # pragma: no cover - guarded by ExecutionRequest
+            raise ExecutionContractError(
+                "execution requires a REQUEST orchestration decision"
+            )
         return ExecutionResult(
             execution_id=request.execution_id,
             decision_id=decision.decision_id,
-            request_id=decision.request_id,
+            request_id=request_id,
             context_snapshot_id=decision.context_snapshot_id,
             target=decision.target,
             decision_reason=decision.reason,

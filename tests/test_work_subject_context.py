@@ -266,11 +266,13 @@ def test_plan_step_context_neither_requires_nor_mutates_runtime_state() -> None:
     assert run.revision == 0
 
 
-def test_plan_step_context_does_not_enter_request_orchestration_path() -> None:
+def test_request_subject_cannot_claim_plan_step_context_from_its_origin() -> None:
     root = Request("start", "test", request_id="request-1")
     snapshot = build_for(plan_step_subject(WorkOrigin("request", "request-1")))
     with pytest.raises(RequestContextMismatchError):
-        OrchestrationInput(root, snapshot, (), HandlerAvailability())
+        OrchestrationInput(
+            work_subject_from_request(root), snapshot, (), HandlerAvailability()
+        )
 
 
 def test_context_components_remain_subject_agnostic_and_evidence_focused() -> None:
@@ -336,7 +338,7 @@ def test_request_factory_context_preserves_existing_request_path() -> None:
     )
     snapshot = build_for(subject, evidence)
     orchestration_input = OrchestrationInput(
-        request,
+        subject,
         snapshot,
         (),
         HandlerAvailability(),

@@ -31,7 +31,7 @@ def _blocker_key(item: ContextBlocker) -> tuple[object, ...]:
 _TARGET_REASON = {
     HandlingKind.SYSTEM: (
         OrchestrationTarget.SYSTEM,
-        OrchestrationReason.DETERMINISTIC_SYSTEM_REQUEST,
+        OrchestrationReason.DETERMINISTIC_SYSTEM_HANDLING,
     ),
     HandlingKind.MEMORY: (
         OrchestrationTarget.MEMORY,
@@ -39,7 +39,7 @@ _TARGET_REASON = {
     ),
     HandlingKind.CAPABILITY: (
         OrchestrationTarget.CAPABILITY,
-        OrchestrationReason.EXPLICIT_CAPABILITY_REQUEST,
+        OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING,
     ),
     HandlingKind.INTELLIGENCE: (
         OrchestrationTarget.INTELLIGENCE,
@@ -52,7 +52,7 @@ class DeterministicOrchestrationPolicy:
     """Choose one handler class from explicit needs and availability.
 
     Relevant context blockers take precedence. More than one need is a
-    composite request that this single-step loop deliberately cannot execute.
+    composite handling case that this single-step boundary cannot resolve.
     """
 
     def select(self, orchestration_input: OrchestrationInput) -> OrchestrationSelection:
