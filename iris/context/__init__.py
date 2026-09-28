@@ -1,7 +1,11 @@
-"""Bounded, ephemeral context for one IRIS request."""
+"""Bounded, ephemeral context for one IRIS work subject."""
 
 from iris.context.contracts import ContextSelectionPolicy
 from iris.context.engine import ContextEngine, ContextPolicyContractError
+from iris.context.errors import (
+    ContextOwnershipError,
+    RequestEvidenceSubjectMismatchError,
+)
 from iris.context.models import (
     ConflictReason,
     ContextBudget,
@@ -33,6 +37,7 @@ __all__ = [
     "ContextEvidence",
     "ContextItem",
     "ContextKind",
+    "ContextOwnershipError",
     "ContextPolicyContractError",
     "ContextSelectionPolicy",
     "ContextSnapshot",
@@ -44,5 +49,6 @@ __all__ = [
     "MemoryContextSource",
     "Relevance",
     "ResolutionStatus",
+    "RequestEvidenceSubjectMismatchError",
     "UncertaintyReason",
 ]

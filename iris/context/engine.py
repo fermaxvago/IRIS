@@ -1,4 +1,4 @@
-"""Request-scoped context construction from explicit evidence."""
+"""Work-subject-scoped context construction from explicit evidence."""
 
 from __future__ import annotations
 
@@ -6,15 +6,16 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from iris.context.contracts import ContextSelectionPolicy
+from iris.context.errors import ContextOwnershipError
 from iris.context.models import (
     ContextBudget,
     ContextCandidate,
     ContextSnapshot,
     ContextUncertainty,
-    EvidenceSource,
     Relevance,
     ResolutionStatus,
     UncertaintyReason,
+    _validate_context_evidence_for_subject,
 )
 from iris.context.selection import (
     ContextSelection,
@@ -22,10 +23,38 @@ from iris.context.selection import (
     DuplicateContextCandidateError,
 )
 from iris.memory.models import identifier, utc_time
+from iris.work_identity.models import (
+    RequestWorkReference,
+    WorkOrigin,
+    WorkSubject,
+    WorkSubjectKind,
+)
 
 
 class ContextPolicyContractError(ValueError):
     """A selection policy produced data outside the supplied evidence/budget."""
+
+
+def _resolve_context_subject(
+    subject: WorkSubject | None,
+    request_id: str | None,
+) -> WorkSubject:
+    if subject is not None and request_id is not None:
+        raise ContextOwnershipError("subject and request_id are mutually exclusive")
+    if subject is None and request_id is None:
+        raise ContextOwnershipError("exactly one Context owner is required")
+    if subject is not None:
+        if not isinstance(subject, WorkSubject):
+            raise TypeError("subject must be a WorkSubject")
+        return subject
+    if request_id is None:  # Defensive narrowing after the exhaustive checks above.
+        raise ContextOwnershipError("exactly one Context owner is required")
+    validated_request_id = identifier(request_id, "request_id")
+    return WorkSubject(
+        WorkSubjectKind.REQUEST,
+        RequestWorkReference(validated_request_id),
+        WorkOrigin("request", validated_request_id),
+    )
 
 
 class ContextEngine:
@@ -37,13 +66,14 @@ class ContextEngine:
     def build(
         self,
         *,
-        request_id: str,
+        subject: WorkSubject | None = None,
+        request_id: str | None = None,
         candidates: tuple[ContextCandidate, ...],
         budget: ContextBudget,
         uncertainties: tuple[ContextUncertainty, ...] = (),
         created_at: datetime | None = None,
     ) -> ContextSnapshot:
-        identifier(request_id, "request_id")
+        owner = _resolve_context_subject(subject, request_id)
         instant = (
             datetime.now(UTC)
             if created_at is None
@@ -60,12 +90,10 @@ class ContextEngine:
             for uncertainty in uncertainties
         ):
             raise TypeError("uncertainties must be a tuple of ContextUncertainty")
+        _validate_context_evidence_for_subject(
+            owner, tuple(candidate.evidence for candidate in candidates)
+        )
         for candidate in candidates:
-            if (
-                candidate.evidence.source is EvidenceSource.REQUEST
-                and candidate.evidence.reference != request_id
-            ):
-                raise ValueError("request evidence must reference the current request")
             if candidate.observed_at is not None and candidate.observed_at > instant:
                 raise ValueError(
                     "context observation cannot postdate snapshot creation"
@@ -142,7 +170,7 @@ class ContextEngine:
             status = ResolutionStatus.RESOLVED
         return ContextSnapshot(
             snapshot_id=uuid4().hex,
-            request_id=request_id,
+            subject=owner,
             created_at=instant,
             budget=budget,
             items=selection.items,

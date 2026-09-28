@@ -154,8 +154,8 @@ provenance record, not legal advice.
 - **Relevant areas:** personal AI; local-first architecture; agents;
   intelligence execution; model/resource routing; tools.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
+- **Last verified:** 2026-09-28
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its local-first agent primitives and learning/execution
@@ -175,14 +175,19 @@ provenance record, not legal advice.
   and separately invoked tool/skill concepts with IRIS work identity. The
   comparison supported keeping incoming input, current operational subject,
   and later invocation distinct, but supplied no identity contract adopted by
-  IRIS. Analysis outcome: `REVIEWED`.
+  IRIS. Analysis outcome: `REVIEWED`. WP016 reused the canonical repository and
+  current skills documentation on 2026-09-28 to review runtime injection of
+  invoked skill content and its agent modes. IRIS retained explicit
+  caller-supplied ContextCandidates and rejected automatic runtime enrichment
+  as part of the Context foundation. Analysis outcome: `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** Not recorded.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP013 rejects an agent/tool, scheduled, or continuous
   loop as the foundational PlanRun control API; one call produces one decision
   and stops. WP014 rejects a model/tool loop as a source of implicit handling
-  detail or execution.
+  detail or execution. WP016 rejects automatic agent-runtime context enrichment
+  as a replacement for explicit evidence submission and bounded selection.
 - **License/provenance notes:** Repository declares Apache License 2.0 in the
   root `LICENSE` file. No code or assets incorporated into IRIS.
 - **General notes:** Registered as a research reference only.
@@ -195,8 +200,8 @@ provenance record, not legal advice.
 - **Relevant areas:** personal assistant; gateways; channels; integrations;
   multiple devices; future IRIS Mesh concepts.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
+- **Last verified:** 2026-09-28
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -217,12 +222,19 @@ provenance record, not legal advice.
   session identity, per-invocation run ID, and independently identified
   background sub-agent sessions. This influenced the separation of causal
   `WorkOrigin` from current `WorkSubject`; OpenClaw lifecycle and session
-  machinery were not adopted. Analysis outcome: `INFLUENCED`.
+  machinery were not adopted. Analysis outcome: `INFLUENCED`. WP016 reused the
+  canonical context and context-engine documentation on 2026-09-28 to review
+  per-run assembly, session-aware compaction, and optional persistence/index
+  lifecycle hooks. These mechanisms were reviewed as a contrast: IRIS Context
+  remains an ephemeral, caller-supplied snapshot distinct from session/runtime
+  lifecycle. Analysis outcome: `REVIEWED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
   implementation was adopted. WP015 separates a known initiating origin from
-  the stable identity of the current derived work unit.
+  the stable identity of the current derived work unit. WP016 keeps Context
+  snapshot construction explicit and ephemeral instead of adopting a session
+  context-engine lifecycle.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Root `LICENSE` declares MIT. The repository also
@@ -306,8 +318,8 @@ provenance record, not legal advice.
 - **Relevant areas:** agent/workflow graphs; state; execution loops;
   checkpoints; durable execution.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
+- **Last verified:** 2026-09-28
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -329,14 +341,20 @@ provenance record, not legal advice.
   and persistence/thread configuration. This influenced the decision to keep
   `WorkSubject` free of state and revision while preserving a separately typed
   operational reference. No graph or persistence runtime was adopted. Analysis
-  outcome: `INFLUENCED`.
+  outcome: `INFLUENCED`. WP016 reused the current Graph API documentation on
+  2026-09-28 to verify that runtime context has its own schema and is passed to
+  nodes separately from graph state and invocation input/output schemas. This
+  influenced IRIS to generalize Context ownership without absorbing mutable
+  PlanRun state or runtime dependencies. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 separates operational Run snapshots from
   checkpoints, persistence, interrupts, and autonomous graph execution. WP013
   makes control advancement explicit and one-shot without adopting a graph
   runtime or super-step executor. WP014 returns a new typed preparation value
   without mutating PlanRun or invoking a runtime. WP015 separates operational
-  subject identity from mutable workflow state and original input.
+  subject identity from mutable workflow state and original input. WP016 keeps
+  WorkSubject-owned evidence Context separate from PlanRun state and runtime
+  dependency configuration.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
@@ -353,8 +371,8 @@ provenance record, not legal advice.
 - **Relevant areas:** agents; workflows; execution; multi-agent architecture;
   observability; human-in-the-loop; durability.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
+- **Last verified:** 2026-09-28
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -378,7 +396,11 @@ provenance record, not legal advice.
   distinction between external workflow interaction and internal processing
   units. This influenced typed WorkSubject references and strict kind/reference
   compatibility without adopting its workflow runtime. Analysis outcome:
-  `INFLUENCED`.
+  `INFLUENCED`. WP016 reused current Microsoft Learn workflow documentation on
+  2026-09-28 to review typed executor messages, separately shared workflow
+  state, and checkpoint/observability capabilities. This reinforced explicit
+  Context ownership while keeping evidence snapshots separate from workflow
+  state, execution, checkpoints, and tracing. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -389,6 +411,8 @@ provenance record, not legal advice.
   WP014 validates explicit typed handling detail and returns a semantic need
   without invoking an executor. WP015 uses typed operational references rather
   than treating the initiating input as every downstream unit's identity.
+  WP016 keeps subject-scoped Context distinct from shared workflow state and
+  runtime operations.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
