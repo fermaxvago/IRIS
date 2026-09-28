@@ -35,6 +35,8 @@ IRIS 0.1 currently provides:
   memory, capability, and intelligence decisions;
 - immutable execution requests/results with end-to-end identity, structured
   failures, and an explicit side-effect boundary;
+- explicit adaptation of PLAN_STEP execution results into raw, append-only
+  PlanRun observations without outcome interpretation or progress mutation;
 - immutable Goal, Plan, and PlanStep representations with explicit constraints,
   success criteria, assumptions, expected outcomes, and dependency validation;
 - a provider-independent Planner contract plus an explicit-rule deterministic
@@ -602,6 +604,41 @@ confirmation, audit, cancellation, or policy checks around this boundary later,
 without claiming any of those systems exist today. The Cognitive Loop comes
 later.
 
+## Execution observation foundation
+
+`iris.execution_observation` adapts one completed `ExecutionResult` belonging
+to a `PLAN_STEP` WorkSubject into one generic `PlanObservation`, then stops. It
+validates the Plan/PlanRun pair with WP012, reads Plan/Run/step ownership only
+from the typed `PlanStepWorkReference`, and requires the result's `subject_id`
+to match. `WorkOrigin` is never used to repair or infer ownership.
+
+The observation records `source="execution"`, `kind="execution_result"`, and
+the concrete `execution_id` as `source_reference`. Its independent
+`observation_id` identifies the evidence record. The payload is an explicit,
+stable serialization of decision/context lineage, target and reason, execution
+status, handler reference, timing, output, failure, and metadata; it does not
+copy the result trace wholesale or duplicate execution/subject identity.
+
+All four execution statuses are observable facts. `SUCCEEDED`, `FAILED`,
+`REJECTED`, and `NOT_EXECUTED` are recorded without assessing a PlanStep's
+expected outcome. In particular, Execution success is not Step success, and
+failed, rejected, or non-executed work is not automatically PlanStep failure.
+`ExecutionResult` and `PlanObservation` remain distinct contracts;
+`PlanObservation` is not an outcome assessment.
+
+Duplicate execution evidence is rejected locally when the same PlanRun already
+contains an observation whose source is `execution` and whose source reference
+is the same execution ID. This is evidence deduplication, not execution
+deduplication, durable replay protection, idempotency, or exactly-once delivery.
+Different executions for the same subject or decision remain distinct facts.
+
+The adapter neither builds nor applies a Run update. A caller may explicitly
+wrap the returned observation in `RecordObservationUpdate` and pass it to the
+generic `PlanRunReducer`; that operation appends evidence and advances the Run
+revision while leaving StepProgress and blockers unchanged. Recording evidence
+does not invoke execution, assess outcomes, mutate progress, retry, replan,
+or enter a control loop.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -648,6 +685,9 @@ The modules below define the current foundation and future boundaries:
 - `iris.execution`: WorkSubject-scoped immutable execution models, deterministic
   coordinator, and adapters to the established system, Memory, Capability, and
   Intelligence boundaries.
+- `iris.execution_observation`: side-effect-free PLAN_STEP ExecutionResult
+  adaptation into raw PlanObservation evidence, with local duplicate-evidence
+  rejection and no outcome assessment or PlanRun mutation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
