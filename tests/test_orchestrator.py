@@ -42,9 +42,11 @@ from iris.orchestrator import (
     OrchestrationTarget,
     Orchestrator,
     RequestContextMismatchError,
+    SubjectContextMismatchError,
 )
 from iris.orchestrator.models import OrchestrationSelection
 from iris.router import DeterministicRouter, RouteTarget
+from iris.work_identity import work_subject_from_request
 
 NOW = datetime(2026, 9, 24, 18, tzinfo=UTC)
 GLOBAL = MemoryScope(ScopeKind.GLOBAL)
@@ -95,6 +97,10 @@ def fixed_orchestrator(
     )
 
 
+def request_subject(request: Request):
+    return work_subject_from_request(request)
+
+
 def decide(
     need: HandlingNeed,
     *,
@@ -104,7 +110,7 @@ def decide(
     request = Request("input", "test", request_id="request-1")
     current = snapshot(request) if context is None else context
     return fixed_orchestrator().decide(
-        OrchestrationInput(request, current, (need,), availability)
+        OrchestrationInput(request_subject(request), current, (need,), availability)
     )
 
 
@@ -149,18 +155,21 @@ def test_models_are_immutable_typed_and_decision_is_traceable() -> None:
     route = DeterministicRouter().route(request)
     need = HandlingNeed("status", HandlingKind.SYSTEM, system_route=route.target)
     decision = fixed_orchestrator().decide(
-        OrchestrationInput(request, context, (need,), ALL_AVAILABLE)
+        OrchestrationInput(request_subject(request), context, (need,), ALL_AVAILABLE)
     )
     assert route.target is RouteTarget.SYSTEM_STATUS
     assert decision.decision_id == "decision-1"
+    assert decision.subject_id == request_subject(request).subject_id
     assert decision.request_id == request.request_id
     assert decision.context_snapshot_id == context.snapshot_id
     assert decision.target is OrchestrationTarget.SYSTEM
-    assert decision.reason is OrchestrationReason.DETERMINISTIC_SYSTEM_REQUEST
+    assert decision.reason is OrchestrationReason.DETERMINISTIC_SYSTEM_HANDLING
     assert decision.requirement == need
     assert decision.created_at == NOW + timedelta(seconds=1)
     trace = decision.to_trace()
     assert json.loads(json.dumps(trace))["target"] == "system"
+    assert trace["subject_id"] == decision.subject_id
+    assert "request_id" not in trace
     assert "reasoning" not in trace
     with pytest.raises(FrozenInstanceError):
         decision.target = OrchestrationTarget.MEMORY  # type: ignore[misc]
@@ -175,24 +184,39 @@ def test_time_is_utc_normalized_and_invalid_time_is_rejected() -> None:
     local_time = (NOW + timedelta(seconds=1)).astimezone(offset)
     decision = Orchestrator(
         clock=lambda: local_time, id_factory=lambda: "decision-1"
-    ).decide(OrchestrationInput(request, context, (system_need(),), ALL_AVAILABLE))
+    ).decide(
+        OrchestrationInput(
+            request_subject(request), context, (system_need(),), ALL_AVAILABLE
+        )
+    )
     assert decision.created_at == NOW + timedelta(seconds=1)
     with pytest.raises(ValueError, match="timezone-aware"):
         Orchestrator(
             clock=lambda: datetime(2026, 9, 24), id_factory=lambda: "decision-1"
-        ).decide(OrchestrationInput(request, context, (system_need(),), ALL_AVAILABLE))
+        ).decide(
+            OrchestrationInput(
+                request_subject(request), context, (system_need(),), ALL_AVAILABLE
+            )
+        )
     with pytest.raises(ValueError, match="predate"):
         Orchestrator(
             clock=lambda: NOW - timedelta(seconds=1),
             id_factory=lambda: "decision-1",
-        ).decide(OrchestrationInput(request, context, (system_need(),), ALL_AVAILABLE))
+        ).decide(
+            OrchestrationInput(
+                request_subject(request), context, (system_need(),), ALL_AVAILABLE
+            )
+        )
 
 
 def test_request_and_context_must_match() -> None:
     first = Request("one", "test", request_id="one")
     second = Request("two", "test", request_id="two")
     with pytest.raises(RequestContextMismatchError):
-        OrchestrationInput(first, snapshot(second), (), HandlerAvailability())
+        OrchestrationInput(
+            request_subject(first), snapshot(second), (), HandlerAvailability()
+        )
+    assert RequestContextMismatchError is SubjectContextMismatchError
 
 
 def test_malformed_need_and_availability_are_rejected() -> None:
@@ -229,7 +253,7 @@ def test_malformed_need_and_availability_are_rejected() -> None:
             system_need(),
             HandlerAvailability(system=True),
             OrchestrationTarget.SYSTEM,
-            OrchestrationReason.DETERMINISTIC_SYSTEM_REQUEST,
+            OrchestrationReason.DETERMINISTIC_SYSTEM_HANDLING,
         ),
         (
             memory_need(),
@@ -244,7 +268,7 @@ def test_malformed_need_and_availability_are_rejected() -> None:
                 capability_ids=frozenset({"desktop.open_spotify"}),
             ),
             OrchestrationTarget.CAPABILITY,
-            OrchestrationReason.EXPLICIT_CAPABILITY_REQUEST,
+            OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING,
         ),
         (
             intelligence_need(),
@@ -308,7 +332,9 @@ def test_generic_capability_need_uses_explicit_layer_availability() -> None:
 def test_availability_alone_does_not_create_a_need() -> None:
     request = Request("unknown", "test", request_id="request-1")
     decision = fixed_orchestrator().decide(
-        OrchestrationInput(request, snapshot(request), (), ALL_AVAILABLE)
+        OrchestrationInput(
+            request_subject(request), snapshot(request), (), ALL_AVAILABLE
+        )
     )
     assert decision.target is OrchestrationTarget.UNSATISFIED
     assert decision.reason is OrchestrationReason.NO_ADMISSIBLE_HANDLER
@@ -360,7 +386,7 @@ def test_explicit_relevant_context_issue_produces_clarification(
     need = replace(intelligence_need(), blockers=(blocker,))
     decision = fixed_orchestrator().decide(
         OrchestrationInput(
-            request,
+            request_subject(request),
             context,
             (need,),
             HandlerAvailability(intelligence=True),
@@ -390,7 +416,7 @@ def test_unrelated_context_issue_does_not_block_handling(
     }
     decision = fixed_orchestrator().decide(
         OrchestrationInput(
-            request,
+            request_subject(request),
             context,
             (intelligence_need(),),
             HandlerAvailability(intelligence=True),
@@ -406,7 +432,7 @@ def test_blocker_must_reference_an_issue_in_the_snapshot() -> None:
     )
     with pytest.raises(ValueError, match="does not exist"):
         OrchestrationInput(
-            request,
+            request_subject(request),
             snapshot(request),
             (replace(intelligence_need(), blockers=(blocker,)),),
             HandlerAvailability(intelligence=True),
@@ -421,7 +447,7 @@ def test_blocker_candidate_order_is_normalized() -> None:
     need = replace(intelligence_need(), blockers=(reversed_blocker,))
     decision = fixed_orchestrator().decide(
         OrchestrationInput(
-            request,
+            request_subject(request),
             context,
             (need,),
             HandlerAvailability(intelligence=True),
@@ -436,10 +462,14 @@ def test_multiple_needs_are_composite_and_input_order_independent() -> None:
     capability = capability_need("a-capability")
     memory = memory_need("b-memory")
     first = fixed_orchestrator().decide(
-        OrchestrationInput(request, context, (memory, capability), ALL_AVAILABLE)
+        OrchestrationInput(
+            request_subject(request), context, (memory, capability), ALL_AVAILABLE
+        )
     )
     second = fixed_orchestrator().decide(
-        OrchestrationInput(request, context, (capability, memory), ALL_AVAILABLE)
+        OrchestrationInput(
+            request_subject(request), context, (capability, memory), ALL_AVAILABLE
+        )
     )
     assert first == second
     assert first.target is OrchestrationTarget.UNSATISFIED
@@ -453,7 +483,7 @@ def test_same_input_produces_same_semantic_decision() -> None:
     context = snapshot(request)
     need = intelligence_need()
     input_value = OrchestrationInput(
-        request,
+        request_subject(request),
         context,
         (need,),
         HandlerAvailability(intelligence=True),
@@ -474,7 +504,7 @@ def test_offline_and_person_presence_are_context_not_routing_or_authority() -> N
     )
     decision = fixed_orchestrator().decide(
         OrchestrationInput(
-            request,
+            request_subject(request),
             context,
             (capability_need(),),
             HandlerAvailability(
@@ -497,7 +527,7 @@ def test_local_intelligence_can_be_selected_while_offline_without_routing_model(
     )
     decision = fixed_orchestrator().decide(
         OrchestrationInput(
-            request,
+            request_subject(request),
             context,
             (intelligence_need(),),
             HandlerAvailability(intelligence=True),
@@ -544,14 +574,14 @@ def test_policy_contract_is_replaceable_and_programming_defects_propagate() -> N
             need = orchestration_input.needs[0]
             return OrchestrationSelection(
                 OrchestrationTarget.SYSTEM,
-                OrchestrationReason.DETERMINISTIC_SYSTEM_REQUEST,
+                OrchestrationReason.DETERMINISTIC_SYSTEM_HANDLING,
                 (need.need_id,),
                 need,
             )
 
     request = Request("input", "test", request_id="request-1")
     input_value = OrchestrationInput(
-        request, snapshot(request), (system_need(),), ALL_AVAILABLE
+        request_subject(request), snapshot(request), (system_need(),), ALL_AVAILABLE
     )
     with pytest.raises(OrchestrationPolicyContractError):
         fixed_orchestrator(Invalid()).decide(input_value)

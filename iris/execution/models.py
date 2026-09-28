@@ -225,6 +225,10 @@ class ExecutionRequest:
         identifier(self.execution_id, "execution_id")
         if not isinstance(self.decision, OrchestrationDecision):
             raise TypeError("decision must be an OrchestrationDecision")
+        if self.decision.request_id is None:
+            raise ValueError(
+                "execution remains limited to REQUEST orchestration decisions"
+            )
         created_at = utc_time(self.created_at, "created_at")
         object.__setattr__(self, "created_at", created_at)
         if created_at < self.decision.created_at:
@@ -448,9 +452,9 @@ class ExecutionResult:
 
 
 _REASONS_BY_TARGET = {
-    OrchestrationTarget.SYSTEM: {OrchestrationReason.DETERMINISTIC_SYSTEM_REQUEST},
+    OrchestrationTarget.SYSTEM: {OrchestrationReason.DETERMINISTIC_SYSTEM_HANDLING},
     OrchestrationTarget.MEMORY: {OrchestrationReason.EXPLICIT_MEMORY_OPERATION},
-    OrchestrationTarget.CAPABILITY: {OrchestrationReason.EXPLICIT_CAPABILITY_REQUEST},
+    OrchestrationTarget.CAPABILITY: {OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING},
     OrchestrationTarget.INTELLIGENCE: {OrchestrationReason.INTELLIGENCE_REQUIRED},
     OrchestrationTarget.CLARIFY: {
         OrchestrationReason.CONTEXT_AMBIGUOUS,

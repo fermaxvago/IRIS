@@ -14,10 +14,11 @@ from iris.orchestrator.models import (
     OrchestrationTarget,
 )
 from iris.orchestrator.policy import DeterministicOrchestrationPolicy
+from iris.work_identity.models import RequestWorkReference, WorkSubjectKind
 
 
 class Orchestrator:
-    """Coordinate one request by producing a decision, then stop."""
+    """Coordinate one WorkSubject by producing a decision, then stop."""
 
     def __init__(
         self,
@@ -48,9 +49,16 @@ class Orchestrator:
                 "policy must return OrchestrationSelection"
             )
         self._validate_selection(orchestration_input, selected)
+        subject = orchestration_input.subject
+        request_id = (
+            subject.reference.request_id
+            if subject.kind is WorkSubjectKind.REQUEST
+            and isinstance(subject.reference, RequestWorkReference)
+            else None
+        )
         return OrchestrationDecision(
             decision_id=decision_id,
-            request_id=orchestration_input.request.request_id,
+            subject_id=subject.subject_id,
             context_snapshot_id=orchestration_input.context.snapshot_id,
             target=selected.target,
             reason=selected.reason,
@@ -58,6 +66,7 @@ class Orchestrator:
             need_ids=selected.need_ids,
             requirement=selected.requirement,
             context_references=selected.context_references,
+            request_id=request_id,
         )
 
     @staticmethod

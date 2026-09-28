@@ -1,8 +1,16 @@
-"""Domain errors for request-scoped orchestration."""
+"""Domain errors for WorkSubject-scoped orchestration."""
 
 
-class RequestContextMismatchError(ValueError):
-    """A context snapshot belongs to a different request."""
+class SubjectContextMismatchError(ValueError):
+    """A ContextSnapshot belongs to a different WorkSubject identity."""
+
+
+# WP009 compatibility name. Ownership validation itself is subject-scoped.
+RequestContextMismatchError = SubjectContextMismatchError
+
+
+class StaleOrchestrationDecisionError(ValueError):
+    """A decision does not belong to the supplied subject/snapshot pair."""
 
 
 class OrchestrationPolicyContractError(ValueError):

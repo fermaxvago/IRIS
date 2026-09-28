@@ -77,10 +77,17 @@ from iris.orchestrator import (
     OrchestrationTarget,
 )
 from iris.router import RouteTarget
+from iris.work_identity import RequestWorkReference, WorkSubject, WorkSubjectKind
 
 NOW = datetime(2026, 9, 25, 18, tzinfo=UTC)
 LATER = NOW + timedelta(seconds=1)
 GLOBAL = MemoryScope(ScopeKind.GLOBAL)
+
+
+def request_subject_id(request_id: str = "request-1") -> str:
+    return WorkSubject(
+        WorkSubjectKind.REQUEST, RequestWorkReference(request_id)
+    ).subject_id
 
 
 def need_for(
@@ -112,9 +119,9 @@ def decision_for(
     memory_operation: MemoryOperation = MemoryOperation.QUERY,
 ) -> OrchestrationDecision:
     reason = {
-        OrchestrationTarget.SYSTEM: OrchestrationReason.DETERMINISTIC_SYSTEM_REQUEST,
+        OrchestrationTarget.SYSTEM: OrchestrationReason.DETERMINISTIC_SYSTEM_HANDLING,
         OrchestrationTarget.MEMORY: OrchestrationReason.EXPLICIT_MEMORY_OPERATION,
-        OrchestrationTarget.CAPABILITY: OrchestrationReason.EXPLICIT_CAPABILITY_REQUEST,
+        OrchestrationTarget.CAPABILITY: OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING,
         OrchestrationTarget.INTELLIGENCE: OrchestrationReason.INTELLIGENCE_REQUIRED,
     }[target]
     requirement = need_for(
@@ -124,6 +131,7 @@ def decision_for(
     )
     return OrchestrationDecision(
         decision_id="decision-1",
+        subject_id=request_subject_id(),
         request_id="request-1",
         context_snapshot_id="context-1",
         target=target,
@@ -145,6 +153,7 @@ def terminal_decision(target: OrchestrationTarget) -> OrchestrationDecision:
         )
         return OrchestrationDecision(
             decision_id="decision-1",
+            subject_id=request_subject_id(),
             request_id="request-1",
             context_snapshot_id="context-1",
             target=target,
@@ -155,6 +164,7 @@ def terminal_decision(target: OrchestrationTarget) -> OrchestrationDecision:
         )
     return OrchestrationDecision(
         decision_id="decision-1",
+        subject_id=request_subject_id(),
         request_id="request-1",
         context_snapshot_id="context-1",
         target=target,
@@ -404,7 +414,7 @@ def test_time_and_linkage_validation() -> None:
             "request-1",
             "context-1",
             OrchestrationTarget.CAPABILITY,
-            OrchestrationReason.EXPLICIT_CAPABILITY_REQUEST,
+            OrchestrationReason.EXPLICIT_CAPABILITY_HANDLING,
             ExecutionStatus.SUCCEEDED,
             "test.handler",
             LATER,
@@ -601,14 +611,15 @@ def test_unsatisfied_intelligence_route_does_not_invoke_runtime_or_fallback() ->
         "need-1", HandlingKind.INTELLIGENCE, intelligence_need=required_local
     )
     decision = OrchestrationDecision(
-        "decision-1",
-        "request-1",
-        "context-1",
-        OrchestrationTarget.INTELLIGENCE,
-        OrchestrationReason.INTELLIGENCE_REQUIRED,
-        NOW,
-        ("need-1",),
-        need,
+        decision_id="decision-1",
+        subject_id=request_subject_id(),
+        context_snapshot_id="context-1",
+        target=OrchestrationTarget.INTELLIGENCE,
+        reason=OrchestrationReason.INTELLIGENCE_REQUIRED,
+        created_at=NOW,
+        need_ids=("need-1",),
+        requirement=need,
+        request_id="request-1",
     )
     runtime = RecordingIntelligenceRuntime()
     handler = IntelligenceExecutionHandler(IntelligenceRouter(), runtime)
@@ -639,14 +650,15 @@ def test_degraded_intelligence_route_remains_executable() -> None:
         "need-1", HandlingKind.INTELLIGENCE, intelligence_need=preferred
     )
     decision = OrchestrationDecision(
-        "decision-1",
-        "request-1",
-        "context-1",
-        OrchestrationTarget.INTELLIGENCE,
-        OrchestrationReason.INTELLIGENCE_REQUIRED,
-        NOW,
-        ("need-1",),
-        need,
+        decision_id="decision-1",
+        subject_id=request_subject_id(),
+        context_snapshot_id="context-1",
+        target=OrchestrationTarget.INTELLIGENCE,
+        reason=OrchestrationReason.INTELLIGENCE_REQUIRED,
+        created_at=NOW,
+        need_ids=("need-1",),
+        requirement=need,
+        request_id="request-1",
     )
     runtime = RecordingIntelligenceRuntime()
     request = ExecutionRequest(
