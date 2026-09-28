@@ -155,7 +155,7 @@ provenance record, not legal advice.
   intelligence execution; model/resource routing; tools.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its local-first agent primitives and learning/execution
@@ -170,7 +170,12 @@ provenance record, not legal advice.
   model-driven agent/tool modes and direct tool-use path with IRIS's typed
   preparation boundary. Automatic tool-call generation and execution were
   excluded: WP014 accepts only explicit handling detail and stops at a semantic
-  need. Analysis outcome: `REJECTED_PATTERN`.
+  need. Analysis outcome: `REJECTED_PATTERN`. WP015 reused the reference on
+  2026-09-27 to compare its explicit query entry points, distinct agent modes,
+  and separately invoked tool/skill concepts with IRIS work identity. The
+  comparison supported keeping incoming input, current operational subject,
+  and later invocation distinct, but supplied no identity contract adopted by
+  IRIS. Analysis outcome: `REVIEWED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** Not recorded.
 - **Adopted patterns:** Not recorded.
@@ -191,7 +196,7 @@ provenance record, not legal advice.
   multiple devices; future IRIS Mesh concepts.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -207,11 +212,17 @@ provenance record, not legal advice.
   on 2026-09-27 to review the boundary between agent-loop tool invocation and
   separately managed background processes. It reinforced that expressing work
   to be handled is not process initiation or lifecycle observation. No runtime
-  behavior was adopted. Analysis outcome: `REVIEWED`.
+  behavior was adopted. Analysis outcome: `REVIEWED`. WP015 reused the
+  reference on 2026-09-27 to review its distinction among an inbound message,
+  session identity, per-invocation run ID, and independently identified
+  background sub-agent sessions. This influenced the separation of causal
+  `WorkOrigin` from current `WorkSubject`; OpenClaw lifecycle and session
+  machinery were not adopted. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
-  implementation was adopted.
+  implementation was adopted. WP015 separates a known initiating origin from
+  the stable identity of the current derived work unit.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Root `LICENSE` declares MIT. The repository also
@@ -296,7 +307,7 @@ provenance record, not legal advice.
   checkpoints; durable execution.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -313,13 +324,19 @@ provenance record, not legal advice.
   review its explicit state schema and node-returned state-update boundary.
   This reinforced an immutable preparation result distinct from invocation or
   in-place PlanRun mutation; the graph runtime itself was not adopted. Analysis
+  outcome: `INFLUENCED`. WP015 reused the reference on 2026-09-27 to review its
+  distinction among invocation input, shared state schema, discrete node work,
+  and persistence/thread configuration. This influenced the decision to keep
+  `WorkSubject` free of state and revision while preserving a separately typed
+  operational reference. No graph or persistence runtime was adopted. Analysis
   outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 separates operational Run snapshots from
   checkpoints, persistence, interrupts, and autonomous graph execution. WP013
   makes control advancement explicit and one-shot without adopting a graph
   runtime or super-step executor. WP014 returns a new typed preparation value
-  without mutating PlanRun or invoking a runtime.
+  without mutating PlanRun or invoking a runtime. WP015 separates operational
+  subject identity from mutable workflow state and original input.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
@@ -337,7 +354,7 @@ provenance record, not legal advice.
   observability; human-in-the-loop; durability.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-27
-- **Relevant Work Packages:** WP011; WP012; WP013; WP014.
+- **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -356,7 +373,12 @@ provenance record, not legal advice.
   workflow executor invocation. Typed compatibility at the preparation
   boundary influenced the separate `StepHandlingSpecification` and result
   contracts; no workflow runtime or executor invocation was adopted. Analysis
-  outcome: `INFLUENCED`.
+  outcome: `INFLUENCED`. WP015 reused the reference on 2026-09-27 to review
+  uniquely identified executors processing typed workflow messages and the
+  distinction between external workflow interaction and internal processing
+  units. This influenced typed WorkSubject references and strict kind/reference
+  compatibility without adopting its workflow runtime. Analysis outcome:
+  `INFLUENCED`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -365,7 +387,8 @@ provenance record, not legal advice.
   WP013 represents one deterministic control outcome without treating pending
   or unresolved work as failure and without advancing a workflow runtime.
   WP014 validates explicit typed handling detail and returns a semantic need
-  without invoking an executor.
+  without invoking an executor. WP015 uses typed operational references rather
+  than treating the initiating input as every downstream unit's identity.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`

@@ -502,6 +502,34 @@ the step, increment the revision, retry, replan, ask the user, persist state, or
 enter a loop. `PREPARED` means only that a valid semantic need can be stated;
 it does not mean safe, authorized, available, active, or executed.
 
+## Work subject and origin foundation
+
+`iris.work_identity` represents the current operational unit of work separately
+from its known root cause. A `WorkSubject` is either a `REQUEST`, referenced by
+`RequestWorkReference(request_id)`, or a `PLAN_STEP`, referenced by
+`PlanStepWorkReference(plan_id, run_id, step_id)`. The typed reference must
+match the subject kind.
+
+`subject_id` is derived internally from a canonical structured encoding of the
+kind and typed reference. It does not include origin, PlanRun revision, state,
+Context, handling, time, authorization, or random data. Consequently, one step
+in one PlanRun retains its identity across revisions, while another Plan, Run,
+or step has a different identity.
+
+An optional `WorkOrigin(source_type, source_id)` records only the known root
+causal reference. The Request adapter records the Request itself as its root.
+The PlanStep adapter preserves an origin explicitly supplied by the caller or
+uses `None`; it never discovers or fabricates one. Origin is descriptive
+provenance, not an authenticated principal, permission, trust decision,
+authorization, inherited Context, payload, or lineage graph.
+
+The PlanStep adapter reuses WP012 PlanRun validation and verifies that the step
+exists, but does not inspect availability or require a ControlDecision. Work
+identity creation does not mutate PlanRun, activate work, create a
+HandlingNeed, orchestrate, execute, persist, schedule, or introduce lifecycle
+state. The subsystem's model layer depends only on identity primitives; its
+adapter layer knows the established Request and Plan/PlanRun contracts.
+
 ## Execution foundation
 
 `iris.execution` implements `decide → execute once → observe result → stop`.
@@ -578,6 +606,9 @@ The modules below define the current foundation and future boundaries:
 - `iris.plan_handling`: immutable one-shot preparation from a current selected
   PlanStep to an existing HandlingNeed, with explicit abstention and no
   orchestration, activation, or execution;
+- `iris.work_identity`: immutable typed Request and PlanStep operational
+  identities, canonical subject IDs, optional root-cause references, and pure
+  adapters without runtime or state semantics;
 - `iris.execution`: immutable execution models, deterministic coordinator, and
   adapters to the established system, Memory, Capability, and Intelligence
   boundaries.
