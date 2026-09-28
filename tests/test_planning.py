@@ -40,6 +40,12 @@ from iris.planning import (
     PlanStep,
     PlanValidationError,
 )
+from iris.work_identity import (
+    RequestWorkReference,
+    WorkOrigin,
+    WorkSubject,
+    WorkSubjectKind,
+)
 
 NOW = datetime(2026, 9, 26, 4, tzinfo=UTC)
 LATER = NOW + timedelta(seconds=1)
@@ -136,11 +142,19 @@ def planner_for(*rules: PlanningRule) -> DeterministicPlanner:
 def snapshot(*items: ContextItem) -> ContextSnapshot:
     return ContextSnapshot(
         snapshot_id="context-1",
-        request_id="request-1",
+        subject=request_subject("request-1"),
         created_at=NOW - timedelta(seconds=1),
         budget=ContextBudget(max_items=len(items)),
         items=tuple(items),
         status=ResolutionStatus.RESOLVED,
+    )
+
+
+def request_subject(request_id: str) -> WorkSubject:
+    return WorkSubject(
+        WorkSubjectKind.REQUEST,
+        RequestWorkReference(request_id),
+        WorkOrigin("request", request_id),
     )
 
 
@@ -454,7 +468,7 @@ def test_temporal_inputs_require_awareness_and_normalize_to_utc() -> None:
 def test_request_rejects_future_or_mismatched_context() -> None:
     future = ContextSnapshot(
         snapshot_id="context-1",
-        request_id="request-1",
+        subject=request_subject("request-1"),
         created_at=NOW + timedelta(seconds=1),
         budget=ContextBudget(0),
         items=(),
@@ -465,7 +479,7 @@ def test_request_rejects_future_or_mismatched_context() -> None:
 
     wrong = ContextSnapshot(
         snapshot_id="context-2",
-        request_id="different-request",
+        subject=request_subject("different-request"),
         created_at=NOW - timedelta(seconds=1),
         budget=ContextBudget(0),
         items=(),

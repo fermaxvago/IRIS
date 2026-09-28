@@ -25,6 +25,7 @@ from iris.context import (
     Freshness,
     MemoryContextSource,
     Relevance,
+    RequestEvidenceSubjectMismatchError,
     ResolutionStatus,
     UncertaintyReason,
 )
@@ -184,7 +185,7 @@ def test_request_evidence_must_belong_to_current_request() -> None:
         reference=request.request_id,
     )
     assert build(matching).items[0].evidence.reference == request.request_id
-    with pytest.raises(ValueError, match="current request"):
+    with pytest.raises(RequestEvidenceSubjectMismatchError, match="known Request"):
         build(
             replace(
                 matching,

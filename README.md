@@ -302,8 +302,14 @@ the caller controls where they are stored and who can access them.
 
 ## Context foundation
 
-`iris.context` constructs an ephemeral `ContextSnapshot` for an explicit
-request ID from caller-supplied `ContextCandidate` values. Each candidate has a
+`iris.context` constructs an ephemeral `ContextSnapshot` owned by an explicit
+`WorkSubject` from caller-supplied `ContextCandidate` values. The canonical
+snapshot stores the small immutable subject value and derives `subject_id` from
+it; `request_id` remains a compatibility accessor only for `REQUEST` subjects.
+The legacy `request_id` build input is adapted immediately into the same
+subject-based pipeline, and cannot be supplied together with `subject`.
+
+Each candidate has a
 scoped kind/key, simple scalar value, traceable evidence reference and epistemic
 status, plus independent relevance and freshness categories. Available evidence
 must be explicitly eligible to be selected; Context never grants permission or
@@ -331,11 +337,19 @@ matching records in reference-only mode require a narrower query or explicit
 content expansion, so unrelated IDs cannot masquerade as conflicting facts.
 The source does not select relevant memories or alter their lifecycle.
 
-Context is selected evidence for the current request: it is separate from
-persistent Memory, Session continuity and external State. Building a snapshot
-does not write Memory, invoke providers or tools, choose actions, plan, grant
-authorization or construct an LLM prompt. The Orchestrator consumes snapshots;
-model Context Assembly remains a separate future boundary.
+Context is selected evidence for the current work subject: it is separate from
+persistent Memory, Session continuity and external State. Ownership does not
+constrain general evidence provenance. `REQUEST` evidence must, however, match
+the `REQUEST` subject or the Request root explicitly recorded in a `PLAN_STEP`
+subject's `WorkOrigin`; this verifies causal compatibility, not truth or trust.
+A derived subject never inherits its origin's Context—relevant evidence must be
+supplied again explicitly.
+
+Building a snapshot does not write Memory, mutate PlanRun, invoke providers or
+tools, choose actions, plan, grant authorization or construct an LLM prompt.
+The existing Orchestrator still consumes only Request-owned snapshots; a
+PLAN_STEP snapshot does not impersonate its Request origin. Generalized
+orchestration remains a separate future boundary.
 
 ## Orchestrator foundation
 

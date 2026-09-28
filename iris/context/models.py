@@ -1,4 +1,4 @@
-"""Ephemeral, evidence-backed context for one IRIS request."""
+"""Ephemeral, evidence-backed context for one IRIS work subject."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+from iris.context.errors import RequestEvidenceSubjectMismatchError
 from iris.memory.models import (
     EpistemicStatus,
     MemoryScope,
@@ -14,6 +15,11 @@ from iris.memory.models import (
     optional_time,
     utc_time,
     vocabulary,
+)
+from iris.work_identity.models import (
+    RequestWorkReference,
+    WorkSubject,
+    WorkSubjectKind,
 )
 
 
@@ -149,7 +155,7 @@ class ContextCandidate:
 
 @dataclass(frozen=True, slots=True)
 class ContextItem:
-    """One selected, traceable claim about the current request."""
+    """One selected, traceable claim in the current subject context."""
 
     candidate_id: str
     kind: str
@@ -249,10 +255,10 @@ class ContextUncertainty:
 
 @dataclass(frozen=True, slots=True)
 class ContextSnapshot:
-    """Request-scoped result; the engine never stores this in Memory."""
+    """Subject-scoped result; the engine never stores this in Memory."""
 
     snapshot_id: str
-    request_id: str
+    subject: WorkSubject
     created_at: datetime
     budget: ContextBudget
     items: tuple[ContextItem, ...]
@@ -263,7 +269,8 @@ class ContextSnapshot:
 
     def __post_init__(self) -> None:
         identifier(self.snapshot_id, "snapshot_id")
-        identifier(self.request_id, "request_id")
+        if not isinstance(self.subject, WorkSubject):
+            raise TypeError("subject must be a WorkSubject")
         object.__setattr__(self, "created_at", utc_time(self.created_at, "created_at"))
         if not isinstance(self.budget, ContextBudget):
             raise TypeError("budget must be ContextBudget")
@@ -278,6 +285,15 @@ class ContextSnapshot:
             if any(not isinstance(value, item_type) for value in values):
                 raise TypeError(f"{name} must contain {item_type.__name__} values")
             object.__setattr__(self, name, values)
+        _validate_context_evidence_for_subject(
+            self.subject,
+            tuple(item.evidence for item in self.items)
+            + tuple(
+                evidence
+                for conflict in self.conflicts
+                for evidence in conflict.evidence
+            ),
+        )
         if len(self.items) > self.budget.max_items:
             raise ValueError("snapshot exceeds context budget")
         keys = [(item.kind, item.key, item.scope) for item in self.items]
@@ -309,3 +325,117 @@ class ContextSnapshot:
         for candidate_id in excluded:
             identifier(candidate_id, "excluded candidate ID")
         object.__setattr__(self, "budget_excluded_ids", excluded)
+
+    @property
+    def subject_id(self) -> str:
+        """Return the canonical owner identity without storing it twice."""
+
+        return self.subject.subject_id
+
+    @property
+    def request_id(self) -> str | None:
+        """Legacy owner identity, applicable only to REQUEST subjects."""
+
+        if self.subject.kind is WorkSubjectKind.REQUEST and isinstance(
+            self.subject.reference, RequestWorkReference
+        ):
+            return self.subject.reference.request_id
+        return None
+
+    def to_data(self) -> dict[str, object]:
+        """Serialize the snapshot with WorkSubject as its only owner field."""
+
+        def evidence_data(evidence: ContextEvidence) -> dict[str, object]:
+            return {
+                "source": evidence.source.value,
+                "reference": evidence.reference,
+                "epistemic": evidence.epistemic.value,
+            }
+
+        def scope_data(scope: MemoryScope) -> dict[str, object]:
+            return {
+                "kind": scope.kind.value,
+                "identifier": scope.identifier,
+            }
+
+        return {
+            "snapshot_id": self.snapshot_id,
+            "subject": self.subject.to_data(),
+            "created_at": self.created_at.isoformat(),
+            "budget": {"max_items": self.budget.max_items},
+            "items": [
+                {
+                    "candidate_id": item.candidate_id,
+                    "kind": item.kind,
+                    "key": item.key,
+                    "value": item.value,
+                    "evidence": evidence_data(item.evidence),
+                    "scope": scope_data(item.scope),
+                    "relevance": item.relevance.value,
+                    "freshness": item.freshness.value,
+                    "observed_at": (
+                        None
+                        if item.observed_at is None
+                        else item.observed_at.isoformat()
+                    ),
+                }
+                for item in self.items
+            ],
+            "status": self.status.value,
+            "uncertainties": [
+                {
+                    "kind": uncertainty.kind,
+                    "key": uncertainty.key,
+                    "scope": scope_data(uncertainty.scope),
+                    "reason": uncertainty.reason.value,
+                    "candidate_ids": list(uncertainty.candidate_ids),
+                }
+                for uncertainty in self.uncertainties
+            ],
+            "conflicts": [
+                {
+                    "kind": conflict.kind,
+                    "key": conflict.key,
+                    "scope": scope_data(conflict.scope),
+                    "candidate_ids": list(conflict.candidate_ids),
+                    "evidence": [
+                        evidence_data(evidence) for evidence in conflict.evidence
+                    ],
+                    "reason": conflict.reason.value,
+                }
+                for conflict in self.conflicts
+            ],
+            "budget_excluded_ids": list(self.budget_excluded_ids),
+        }
+
+
+def _known_request_reference(subject: WorkSubject) -> str | None:
+    """Return the structurally known root Request, if one is available."""
+
+    if subject.kind is WorkSubjectKind.REQUEST:
+        if not isinstance(subject.reference, RequestWorkReference):
+            raise TypeError("REQUEST subject must use RequestWorkReference")
+        return subject.reference.request_id
+    if subject.origin is not None and subject.origin.source_type == "request":
+        return subject.origin.source_id
+    return None
+
+
+def _validate_context_evidence_for_subject(
+    subject: WorkSubject,
+    evidence_values: tuple[ContextEvidence, ...],
+) -> None:
+    """Validate causal compatibility without changing epistemic status."""
+
+    if not isinstance(subject, WorkSubject):
+        raise TypeError("subject must be a WorkSubject")
+    known_request = _known_request_reference(subject)
+    for evidence in evidence_values:
+        if not isinstance(evidence, ContextEvidence):
+            raise TypeError("evidence_values must contain ContextEvidence")
+        if evidence.source is not EvidenceSource.REQUEST:
+            continue
+        if known_request is None or evidence.reference != known_request:
+            raise RequestEvidenceSubjectMismatchError(
+                "REQUEST evidence does not match a known Request for the subject"
+            )
