@@ -156,7 +156,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021.
+  WP018; WP019; WP020; WP021; WP022.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its local-first agent primitives and learning/execution
@@ -211,6 +211,14 @@ provenance record, not legal advice.
   assessment-to-policy decision boundary, while integrated execution,
   evaluation, adoption, and learning-loop progression were excluded. Analysis
   outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
+  WP022 reverified the current OpenJarvis changelog on 2026-09-29. **FACT:**
+  `SpecSearchOrchestrator` combines diagnose, plan, execute, and a held-out
+  non-regression gate in one learning session. **INFERENCE:** its explicit gate
+  illustrates that evaluation and adoption are distinguishable even when one
+  runtime composes them. **IRIS DECISION:** WP022 materializes only an already
+  accepted transition decision into an inert update; it rejects the integrated
+  loop, automatic adoption, and continuation. Analysis outcomes: `INFLUENCED`
+  and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP018 keeps an explicit invocation/result boundary
   while leaving result-driven model iteration outside the Execution layer.
@@ -218,7 +226,8 @@ provenance record, not legal advice.
   any outcome interpretation. WP020 separates explicit evidence from a
   replaceable evaluator and preserves evaluator provenance without adopting a
   benchmark runtime. WP021 inserts an explicit operational policy gate between
-  epistemic assessment and any future progress update.
+  epistemic assessment and any future progress update. WP022 preserves that
+  gate as the immediate provenance of a separately synthesized update.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP013 rejects an agent/tool, scheduled, or continuous
   loop as the foundational PlanRun control API; one call produces one decision
@@ -247,7 +256,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021.
+  WP018; WP019; WP020; WP021; WP022.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -302,6 +311,15 @@ provenance record, not legal advice.
   influenced strict transition-decision currentness, explicit abstention, and
   refusal to resurrect terminal progress; the durable task-flow runtime was
   not adopted. Analysis outcome: `INFLUENCED`.
+  WP022 reverified current TaskFlow webhook documentation on 2026-09-29.
+  **FACT:** managed flow mutations carry `expectedRevision`, stale revisions
+  return `revision_conflict`, successful record operations remain distinct from
+  completed child work, and flow creation has no general idempotency key.
+  **INFERENCE:** mutation eligibility must be checked at the application
+  boundary, and repeated preparation does not itself provide exactly-once
+  behavior. **IRIS DECISION:** WP022 preserves two gates: decision currentness
+  before synthesis and `StepProgressUpdate.expected_revision` for the existing
+  reducer; duplicate synthesis remains allowed. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
@@ -317,7 +335,8 @@ provenance record, not legal advice.
   evidence separate from an evaluator's PlanStep-level epistemic conclusion.
   WP021 revalidates the exact current Run revision before a transition decision
   can be consumed and keeps waiting/terminal distinctions out of failure
-  inference.
+  inference. WP022 carries that revision into an inert update while leaving
+  final stale-write rejection to the reducer.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Root `LICENSE` declares MIT. The repository also
@@ -403,7 +422,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021.
+  WP018; WP019; WP020; WP021; WP022.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -462,6 +481,16 @@ provenance record, not legal advice.
   assessment lineage and strict decision currentness. IRIS explicitly rejected
   combining evaluation/control, state update, and routing in one Command-like
   runtime primitive. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
+  WP022 reverified current persistence, checkpointer, `StateSnapshot`, and
+  `update_state` documentation on 2026-09-29. **FACT:** `update_state` creates a
+  new checkpoint rather than modifying the original, applies configured
+  reducers, and records update attribution in snapshot metadata; graph nodes
+  may otherwise combine state update with next-node routing. **INFERENCE:** a
+  prepared state update and its later application are useful distinct lineage
+  points. **IRIS DECISION:** WP022 emits only `StepProgressUpdate` with
+  transition-decision provenance and rejects checkpoint persistence,
+  update-plus-routing primitives, and automatic graph progression. Analysis
+  outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 separates operational Run snapshots from
   checkpoints, persistence, interrupts, and autonomous graph execution. WP013
@@ -479,7 +508,8 @@ provenance record, not legal advice.
   deterministic and model-backed evaluation as replaceable mechanisms while
   leaving evidence selection and state progression outside the evaluator.
   WP021 keeps assessment applicability, policy output, decision lineage, and a
-  future reducer update as separate contracts.
+  future reducer update as separate contracts. WP022 fills only the
+  decision-to-update seam and still leaves reducer application external.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP019 rejects retry, checkpoint recovery, automatic
   state update, and error-handler routing inside execution evidence recording.
@@ -503,7 +533,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021.
+  WP018; WP019; WP020; WP021; WP022.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -563,6 +593,15 @@ provenance record, not legal advice.
   between assessment, decision, and later mutation. IRIS did not adopt its
   checkpoint storage, resume, or workflow runtime. Analysis outcome:
   `INFLUENCED`.
+  WP022 reverified current workflow state and checkpoint documentation on
+  2026-09-29. **FACT:** workflow state updates have explicit visibility timing,
+  and checkpoints capture executor, pending-message/request, and shared state
+  at super-step boundaries for later resume. **INFERENCE:** state materialization
+  belongs to an explicit consistent-state boundary rather than to an earlier
+  epistemic result. **IRIS DECISION:** WP022 constructs an inert update with
+  immediate decision provenance but does not adopt shared workflow state,
+  checkpointing, resume, storage, or the Agent Framework runtime. Analysis
+  outcome: `INFLUENCED`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -583,7 +622,8 @@ provenance record, not legal advice.
   explicit canonical evidence while retaining an inert assessment result and
   no progress transition. WP021 adds a separate current-state applicability and
   operational-decision layer while continuing to defer mutation to a later
-  explicit update/reducer boundary.
+  explicit update/reducer boundary. WP022 materializes that decision as an
+  existing typed update while preserving reducer ownership of mutation.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
