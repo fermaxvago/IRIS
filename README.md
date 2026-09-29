@@ -41,6 +41,9 @@ IRIS 0.1 currently provides:
   PlanRun evidence, with a conservative replaceable evaluator;
 - immutable StepProgress transition decisions that separate assessment
   applicability, operational policy, and future progress mutation;
+- bounded PlanRun progress advancement that applies one StepProgressUpdate,
+  derives one new immutable Run revision, makes one post-mutation control
+  decision, and stops;
 - immutable Goal, Plan, and PlanStep representations with explicit constraints,
   success criteria, assumptions, expected outcomes, and dependency validation;
 - a provider-independent Planner contract plus an explicit-rule deterministic
@@ -749,6 +752,32 @@ the assessment, rerun transition policy, deduplicate repeated synthesis, or
 continue the plan. A caller may later apply the update explicitly through the
 existing reducer; until then the Run remains unchanged.
 
+## PlanRun progress advancement foundation
+
+`iris.plan_run_advancement` composes exactly one existing progress update with
+exactly one post-mutation control pass:
+
+```text
+StepProgressUpdate
+    → PlanRunProgressAdvancer
+    → PlanRunReducer
+    → PlanRun(N+1)
+    → PlanRunController
+    → ControlDecision(N+1)
+    → STOP
+```
+
+The reducer remains the authority for update identity, expected revision,
+evidence, legal transitions, and immutable Run derivation. The controller then
+observes only the derived `N+1` Run, and its decision is validated current for
+that revision. `PlanRunProgressAdvanceResult` preserves the source update ID and
+revision together with the new Run and the one resulting control decision.
+
+This is bounded progress advancement, not a transaction or workflow loop. A
+selected step remains `NOT_STARTED`: selection does not activate, prepare,
+or execute it. The subsystem performs no persistence, retry, recovery,
+replanning, Goal evaluation, second update, or automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -806,6 +835,9 @@ The modules below define the current foundation and future boundaries:
 - `iris.step_progress_update_synthesis`: one-shot binding of a current
   actionable transition decision and its matching assessment into the existing
   `StepProgressUpdate`, without reducer invocation or Run mutation.
+- `iris.plan_run_advancement`: bounded composition of one StepProgressUpdate,
+  one new immutable PlanRun revision, and one current post-mutation
+  ControlDecision, without persistence or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.

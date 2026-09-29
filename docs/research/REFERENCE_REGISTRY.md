@@ -128,13 +128,15 @@ License/provenance reviewed:
 
 ## Registry summary
 
-All entries below were registered on **2026-09-25**. Identity and repository
-status were checked against the canonical GitHub repositories on that date.
-Later research activity is recorded per entry. License notes are a basic
-provenance record, not legal advice.
+The initial catalog entries were registered on **2026-09-25**; later additions
+record their own registration date. Identity and repository status are checked
+against canonical sources when registered. Later research activity is recorded
+per entry. License notes are a basic provenance record, not legal advice.
 
 | Reference | Canonical repository | Status | Declared license summary |
 | --- | --- | --- | --- |
+| Kubernetes | <https://github.com/kubernetes/kubernetes> | `REVIEWED` | Apache-2.0 |
+| Temporal | <https://github.com/temporalio/temporal> | `REVIEWED` | MIT |
 | OpenJarvis | <https://github.com/open-jarvis/OpenJarvis> | `REVIEWED` | Apache-2.0 |
 | OpenClaw | <https://github.com/openclaw/openclaw> | `REVIEWED` | MIT; third-party notices also apply |
 | Letta | <https://github.com/letta-ai/letta> | `REGISTERED` | Apache-2.0 |
@@ -145,6 +147,63 @@ provenance record, not legal advice.
 | AutoGen | <https://github.com/microsoft/autogen> | `CHANGED` | Mixed scope; root CC-BY-4.0 and code package license files must be checked |
 | PersonalJarvis | <https://github.com/PersonalJarvis/PersonalJarvis> | `REGISTERED` | Apache-2.0 on current line; releases through 1.6.0 remain MIT |
 | Particle Interaction - wonderstone | <https://github.com/wonderstone/particle-interaction> | `REGISTERED` | No license recorded at repository root |
+
+## Kubernetes
+
+- **Name:** Kubernetes
+- **Canonical URL:** <https://github.com/kubernetes/kubernetes>
+- **Status:** `REVIEWED`
+- **Relevant areas:** controllers; reconciliation; observed versus desired
+  state; bounded state-change handling.
+- **Date registered:** 2026-09-29
+- **Last verified:** 2026-09-29
+- **Relevant Work Packages:** WP023.
+- **Research history:** WP023 reviewed the current official controller
+  documentation on 2026-09-29. **FACT:** Kubernetes controllers are control
+  loops that observe current cluster state and make or request changes toward
+  desired state. **INFERENCE:** observing newly derived state before choosing a
+  subsequent control outcome is a useful composition boundary. **IRIS
+  DECISION:** WP023 performs one post-mutation control observation and stops;
+  it does not adopt a continuously running reconciliation loop. Analysis
+  outcomes: `INFLUENCED` and `REJECTED_PATTERN` for continuous reconciliation.
+- **Known changes:** None recorded.
+- **Influenced decisions:** The controller receives only the Run produced by
+  the reducer, never the pre-update Run.
+- **Adopted patterns:** Not recorded.
+- **Rejected patterns:** Continuous reconciliation, background controllers,
+  persistence, and automatic convergence are outside WP023.
+- **License/provenance notes:** The canonical repository root `LICENSE`
+  declares Apache License 2.0. No code or assets incorporated into IRIS.
+- **General notes:** Registered as a focused architecture reference for WP023.
+
+## Temporal
+
+- **Name:** Temporal
+- **Canonical URL:** <https://github.com/temporalio/temporal>
+- **Status:** `REVIEWED`
+- **Relevant areas:** workflow event history; Workflow Tasks; durable state;
+  bounded progression and replay.
+- **Date registered:** 2026-09-29
+- **Last verified:** 2026-09-29
+- **Relevant Work Packages:** WP023.
+- **Research history:** WP023 reviewed current official Event History,
+  Workflow Task, and workflow-definition documentation on 2026-09-29. **FACT:**
+  Temporal records workflow progression in Event History, and a Worker replays
+  that history during a Workflow Task before emitting Commands that request
+  later events. **INFERENCE:** a bounded unit should reason from the state that
+  exists after the preceding progression boundary. **IRIS DECISION:** WP023
+  composes one reducer result with one later control decision, but rejects
+  durable history, replay, command scheduling, retries, and workflow runtime.
+  Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN` for durability/runtime.
+- **Known changes:** None recorded.
+- **Influenced decisions:** The post-mutation control decision is anchored to
+  the newly derived Run revision.
+- **Adopted patterns:** Not recorded.
+- **Rejected patterns:** Event-history persistence, replay, durable scheduling,
+  automatic retries, and workflow execution are outside WP023.
+- **License/provenance notes:** The canonical repository root `LICENSE`
+  declares MIT. No code or assets incorporated into IRIS.
+- **General notes:** Registered as a focused architecture reference for WP023.
 
 ## OpenJarvis
 
@@ -256,7 +315,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021; WP022.
+  WP018; WP019; WP020; WP021; WP022; WP023.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -320,6 +379,14 @@ provenance record, not legal advice.
   behavior. **IRIS DECISION:** WP022 preserves two gates: decision currentness
   before synthesis and `StepProgressUpdate.expected_revision` for the existing
   reducer; duplicate synthesis remains allowed. Analysis outcome: `INFLUENCED`.
+  WP023 reverified current TaskFlow documentation on 2026-09-29. **FACT:** each
+  managed-flow write increments `revision`; stale `expectedRevision` writers
+  receive `revision_conflict` and must re-read the current record.
+  **INFERENCE:** subsequent control should observe the post-mutation record,
+  not continue from its predecessor. **IRIS DECISION:** WP023 delegates the
+  write gate to `PlanRunReducer`, then calls the existing controller exactly
+  once on the derived revision; TaskFlow persistence, automatic rerun, and
+  recovery remain excluded. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
@@ -336,7 +403,8 @@ provenance record, not legal advice.
   WP021 revalidates the exact current Run revision before a transition decision
   can be consumed and keeps waiting/terminal distinctions out of failure
   inference. WP022 carries that revision into an inert update while leaving
-  final stale-write rejection to the reducer.
+  final stale-write rejection to the reducer. WP023 composes that reducer gate
+  with one control observation of the returned post-mutation revision.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Root `LICENSE` declares MIT. The repository also
@@ -422,7 +490,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021; WP022.
+  WP018; WP019; WP020; WP021; WP022; WP023.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -491,6 +559,14 @@ provenance record, not legal advice.
   transition-decision provenance and rejects checkpoint persistence,
   update-plus-routing primitives, and automatic graph progression. Analysis
   outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
+  WP023 reverified current Graph API `Command` documentation on 2026-09-29.
+  **FACT:** a LangGraph `Command` can combine state updates and routing to a
+  next node in one returned value. **INFERENCE:** that integration is useful in
+  a graph runtime but couples mutation and continuation. **IRIS DECISION:**
+  WP023 composes one already-typed reducer update with one later control
+  decision, but stops before activation or routing; combined update-and-goto,
+  checkpointing, and automatic graph progression are rejected. Analysis
+  outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 separates operational Run snapshots from
   checkpoints, persistence, interrupts, and autonomous graph execution. WP013
@@ -510,6 +586,8 @@ provenance record, not legal advice.
   WP021 keeps assessment applicability, policy output, decision lineage, and a
   future reducer update as separate contracts. WP022 fills only the
   decision-to-update seam and still leaves reducer application external.
+  WP023 adds one bounded reducer-plus-recontrol composition while keeping
+  activation and continuation outside it.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP019 rejects retry, checkpoint recovery, automatic
   state update, and error-handler routing inside execution evidence recording.
@@ -533,7 +611,7 @@ provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021; WP022.
+  WP018; WP019; WP020; WP021; WP022; WP023.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -602,6 +680,14 @@ provenance record, not legal advice.
   immediate decision provenance but does not adopt shared workflow state,
   checkpointing, resume, storage, or the Agent Framework runtime. Analysis
   outcome: `INFLUENCED`.
+  WP023 reverified current workflow and checkpoint documentation on
+  2026-09-29. **FACT:** Agent Framework workflows execute in supersteps, and
+  checkpoints are created at a completed superstep boundary after its
+  executors finish. **INFERENCE:** bounded work and subsequent progression have
+  a useful explicit consistent-state boundary. **IRIS DECISION:** WP023 makes
+  one bounded reducer derivation followed by one control pass over that new
+  state, without adopting workflow execution, checkpoint storage, resume, or
+  superstep looping. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -623,7 +709,8 @@ provenance record, not legal advice.
   no progress transition. WP021 adds a separate current-state applicability and
   operational-decision layer while continuing to defer mutation to a later
   explicit update/reducer boundary. WP022 materializes that decision as an
-  existing typed update while preserving reducer ownership of mutation.
+  existing typed update while preserving reducer ownership of mutation. WP023
+  preserves that ownership and adds exactly one post-mutation control pass.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
