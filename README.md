@@ -717,6 +717,38 @@ steps are not reopened or resurrected by later assessments. WP021 creates no
 `StepProgressUpdate`, invokes no reducer, mutates no PlanRun state, and performs
 no retry, waiting, recovery, replanning, authorization, or external I/O.
 
+## Step progress update synthesis foundation
+
+`iris.step_progress_update_synthesis` binds one current actionable
+`StepProgressTransitionDecision` to its explicitly supplied matching
+`StepOutcomeAssessment` and returns the existing WP012 `StepProgressUpdate`:
+
+```text
+StepOutcomeAssessment + StepProgressTransitionDecision
+    → StepProgressUpdateSynthesizer
+    → StepProgressUpdate
+    → STOP
+```
+
+The WP021 currentness validator first anchors synthesis to the exact current
+PlanRun revision and observed source state. A `NO_TRANSITION` decision is valid
+but non-materializable. For a positive decision, the assessment must match the
+decision's Plan/Run/step/assessment identities, be `SATISFIED`, predate the
+decision, cover the exact current step-scoped evidence basis, and be no older
+than the current `ACTIVE` state.
+
+The decision supplies what changes: step, target state, and observed revision.
+The assessment supplies the terminal evidence IDs. The resulting update uses
+`expected_revision = decision.observed_revision` and immediate provenance
+`source_type="step_progress_transition"` with the decision ID. Decision
+currentness protects decision-to-update synthesis; the update's expected
+revision separately protects later update-to-Run mutation.
+
+WP022 does not invoke `PlanRunReducer`, mutate PlanRun, rediscover or reevaluate
+the assessment, rerun transition policy, deduplicate repeated synthesis, or
+continue the plan. A caller may later apply the update explicitly through the
+existing reducer; until then the Run remains unchanged.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -768,6 +800,12 @@ The modules below define the current foundation and future boundaries:
   rejection and no outcome assessment or PlanRun mutation.
 - `iris.outcome_assessment`: replaceable PlanStep evidence evaluators and
   immutable epistemic assessments, with no progress policy or state mutation.
+- `iris.step_progress_transition`: assessment-applicability validation,
+  replaceable transition policy, immutable operational decisions, and strict
+  decision-currentness validation without progress mutation.
+- `iris.step_progress_update_synthesis`: one-shot binding of a current
+  actionable transition decision and its matching assessment into the existing
+  `StepProgressUpdate`, without reducer invocation or Run mutation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
