@@ -39,6 +39,8 @@ IRIS 0.1 currently provides:
   PlanRun observations without outcome interpretation or progress mutation;
 - immutable PlanStep outcome assessments over explicitly selected, canonical
   PlanRun evidence, with a conservative replaceable evaluator;
+- immutable StepProgress transition decisions that separate assessment
+  applicability, operational policy, and future progress mutation;
 - immutable Goal, Plan, and PlanStep representations with explicit constraints,
   success criteria, assumptions, expected outcomes, and dependency validation;
 - a provider-independent Planner contract plus an explicit-rule deterministic
@@ -675,6 +677,45 @@ Assessment is epistemic, not operational policy. WP020 does not create a
 availability or Run condition, evaluate Goal success, call Intelligence, chain
 evaluators, retry, replan, or select subsequent work. The stored Run revision
 is audit lineage only; WP020 introduces no assessment-currentness rule.
+
+## Step progress transition decision foundation
+
+`iris.step_progress_transition` consumes one explicitly supplied
+`StepOutcomeAssessment` with the canonical `Plan`, current immutable `PlanRun`,
+and canonical `PlanStep`. It validates identity and evidence lineage, checks
+whether the assessment can conservatively govern the current step state,
+invokes a replaceable transition policy only when applicable, and returns one
+inert `StepProgressTransitionDecision`:
+
+```text
+StepOutcomeAssessment
+    → assessment applicability
+    → StepProgressTransitionPolicy
+    → StepProgressTransitionDecision
+    → STOP
+```
+
+Assessment revision and decision revision have deliberately different
+semantics. `StepOutcomeAssessment.run_revision` is historical audit lineage;
+an older assessment may remain applicable after unrelated Run revisions.
+`StepProgressTransitionDecision.observed_revision` is instead a strict
+currentness anchor: a later consumer must reject the decision after any Run
+revision change.
+
+The conservative applicability rule requires the assessment evidence IDs to
+equal the current step-scoped observation IDs. New evidence for the same step
+therefore produces `NO_TRANSITION` with
+`INCOMPLETE_CURRENT_EVIDENCE_BASIS`; it does not invalidate or overwrite the
+historical assessment. Run-level and other-step observations are excluded. An
+assessment predating the current `ACTIVE` state's `changed_at` likewise
+produces an auditable `NO_TRANSITION` without invoking the policy.
+
+The baseline policy permits exactly one positive result: an applicable
+`ACTIVE` + `SATISFIED` assessment requests `SUCCEEDED`. `NOT_SATISFIED` never
+means `FAILED`, `NOT_STARTED` never jumps directly to `SUCCEEDED`, and terminal
+steps are not reopened or resurrected by later assessments. WP021 creates no
+`StepProgressUpdate`, invokes no reducer, mutates no PlanRun state, and performs
+no retry, waiting, recovery, replanning, authorization, or external I/O.
 
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a

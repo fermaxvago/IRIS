@@ -154,9 +154,9 @@ provenance record, not legal advice.
 - **Relevant areas:** personal AI; local-first architecture; agents;
   intelligence execution; model/resource routing; tools.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-28
+- **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020.
+  WP018; WP019; WP020; WP021.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its local-first agent primitives and learning/execution
@@ -205,13 +205,20 @@ provenance record, not legal advice.
   replaceable evaluator contract and conservative deterministic baseline;
   automatic LLM fallback, scoring runs, and mandatory numeric scores were
   excluded. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
+  WP021 reverified the current OpenJarvis changelog on 2026-09-29, including
+  its integrated diagnose-plan-execute-gate spec-search loop and held-out gate
+  that accepts only non-regressing edits. The explicit gate influenced IRIS's
+  assessment-to-policy decision boundary, while integrated execution,
+  evaluation, adoption, and learning-loop progression were excluded. Analysis
+  outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP018 keeps an explicit invocation/result boundary
   while leaving result-driven model iteration outside the Execution layer.
   WP019 preserves structured execution facts in a separate observation before
   any outcome interpretation. WP020 separates explicit evidence from a
   replaceable evaluator and preserves evaluator provenance without adopting a
-  benchmark runtime.
+  benchmark runtime. WP021 inserts an explicit operational policy gate between
+  epistemic assessment and any future progress update.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP013 rejects an agent/tool, scheduled, or continuous
   loop as the foundational PlanRun control API; one call produces one decision
@@ -224,7 +231,8 @@ provenance record, not legal advice.
   persistence inside the single-call Execution foundation. WP019 likewise
   rejects an event bus and automatic agent continuation as part of evidence
   recording. WP020 rejects automatic LLM-judge fallback and benchmark-driven
-  workflow progression.
+  workflow progression. WP021 rejects a combined
+  diagnose-execute-evaluate-adopt loop as the progress-transition boundary.
 - **License/provenance notes:** Repository declares Apache License 2.0 in the
   root `LICENSE` file. No code or assets incorporated into IRIS.
 - **General notes:** Registered as a research reference only.
@@ -237,9 +245,9 @@ provenance record, not legal advice.
 - **Relevant areas:** personal assistant; gateways; channels; integrations;
   multiple devices; future IRIS Mesh concepts.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-28
+- **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020.
+  WP018; WP019; WP020; WP021.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -287,6 +295,13 @@ provenance record, not legal advice.
   scope. This reinforced that completed execution evidence requires a separate
   higher-level assessment and does not itself prove the parent outcome.
   Analysis outcome: `INFLUENCED`.
+  WP021 reverified the current TaskFlow documentation on 2026-09-29. Managed
+  flow mutations require the latest expected revision, callers must continue
+  from the returned post-mutation record, creation is distinct from execution,
+  and waiting and terminal statuses remain explicit. These mechanisms
+  influenced strict transition-decision currentness, explicit abstention, and
+  refusal to resurrect terminal progress; the durable task-flow runtime was
+  not adopted. Analysis outcome: `INFLUENCED`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
@@ -300,6 +315,9 @@ provenance record, not legal advice.
   WP019 records one execution attempt by its execution ID while keeping that
   fact separate from work progress and goal completion. WP020 keeps completion
   evidence separate from an evaluator's PlanStep-level epistemic conclusion.
+  WP021 revalidates the exact current Run revision before a transition decision
+  can be consumed and keeps waiting/terminal distinctions out of failure
+  inference.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Root `LICENSE` declares MIT. The repository also
@@ -383,9 +401,9 @@ provenance record, not legal advice.
 - **Relevant areas:** agent/workflow graphs; state; execution loops;
   checkpoints; durable execution.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-28
+- **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020.
+  WP018; WP019; WP020; WP021.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -437,6 +455,13 @@ provenance record, not legal advice.
   adopted only the evaluator separation: managed tracing, feedback attachment,
   automatic evaluation, scoring, routing, and state mutation remain outside
   WP020. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
+  WP021 reverified current persistence, checkpointer, `StateSnapshot`, and
+  `update_state` documentation on 2026-09-29. LangGraph preserves historical
+  checkpoints and creates a new checkpoint for a state update rather than
+  changing the original snapshot. This influenced IRIS's distinct historical
+  assessment lineage and strict decision currentness. IRIS explicitly rejected
+  combining evaluation/control, state update, and routing in one Command-like
+  runtime primitive. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 separates operational Run snapshots from
   checkpoints, persistence, interrupts, and autonomous graph execution. WP013
@@ -453,11 +478,15 @@ provenance record, not legal advice.
   state advancement to an explicit later reducer update. WP020 keeps
   deterministic and model-backed evaluation as replaceable mechanisms while
   leaving evidence selection and state progression outside the evaluator.
+  WP021 keeps assessment applicability, policy output, decision lineage, and a
+  future reducer update as separate contracts.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** WP019 rejects retry, checkpoint recovery, automatic
   state update, and error-handler routing inside execution evidence recording.
   WP020 rejects attaching managed evaluation feedback to workflow state or
-  coupling assessment to retry/routing behavior.
+  coupling assessment to retry/routing behavior. WP021 rejects a combined
+  update-and-routing primitive and does not adopt checkpoint persistence,
+  interrupt/resume, or automatic graph progression.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
   file. Hosted or commercial offerings may have separate terms and are outside
   this repository-level review. No code or assets incorporated into IRIS.
@@ -472,9 +501,9 @@ provenance record, not legal advice.
 - **Relevant areas:** agents; workflows; execution; multi-agent architecture;
   observability; human-in-the-loop; durability.
 - **Date registered:** 2026-09-25
-- **Last verified:** 2026-09-28
+- **Last verified:** 2026-09-29
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020.
+  WP018; WP019; WP020; WP021.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -527,6 +556,13 @@ provenance record, not legal advice.
   evaluator contract and explicit evaluator reference. Foundry services,
   aggregate scoring, mandatory pass/fail, and workflow advancement were not
   adopted. Analysis outcome: `INFLUENCED`.
+  WP021 reverified current workflow checkpoint documentation on 2026-09-29.
+  Agent Framework creates checkpoints at super-step boundaries after executor
+  completion and captures executor, pending-message/request, and shared state
+  for explicit resume. This reinforced an explicit consistent-state boundary
+  between assessment, decision, and later mutation. IRIS did not adopt its
+  checkpoint storage, resume, or workflow runtime. Analysis outcome:
+  `INFLUENCED`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
@@ -545,7 +581,9 @@ provenance record, not legal advice.
   records one raw completion result as evidence without equating an executor
   event with PlanStep progress. WP020 introduces a replaceable evaluator over
   explicit canonical evidence while retaining an inert assessment result and
-  no progress transition.
+  no progress transition. WP021 adds a separate current-state applicability and
+  operational-decision layer while continuing to defer mutation to a later
+  explicit update/reducer boundary.
 - **Adopted patterns:** Not recorded.
 - **Rejected patterns:** Not recorded.
 - **License/provenance notes:** Repository declares MIT in the root `LICENSE`
