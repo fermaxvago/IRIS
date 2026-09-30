@@ -778,6 +778,32 @@ selected step remains `NOT_STARTED`: selection does not activate, prepare,
 or execute it. The subsystem performs no persistence, retry, recovery,
 replanning, Goal evaluation, second update, or automatic continuation.
 
+## PlanStep execution binding foundation
+
+`iris.plan_step_execution_binding` proves that one current selection, one
+current prepared handling need, and one existing execution request all describe
+the same exact pre-activation PlanStep on the same PlanRun revision:
+
+```text
+STEP_SELECTED + PREPARED handling + ExecutionRequest + PlanRun revision N
+    → PlanStepExecutionBinder
+    → PlanStepExecutionBinding(revision N)
+    → STOP
+```
+
+The compact immutable binding preserves Plan/Run/step identity together with
+the execution attempt, WorkSubject, ContextSnapshot, orchestration decision,
+and HandlingNeed identities. Its currentness validator requires the exact Run
+revision and confirms that the step remains `NOT_STARTED` and canonically
+`READY`; any Run revision change requires a new binding even when the apparent
+work identity is otherwise unchanged.
+
+Binding is only a lineage witness. It does not activate the step, create a
+`StepProgressUpdate`, invoke the reducer, admit or schedule execution, reserve
+a handler, prove current handler availability, call `ExecutionCoordinator`, or
+invoke a handler. Selection, preparation, request construction, binding,
+runtime admission, and actual execution remain distinct boundaries.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -838,6 +864,9 @@ The modules below define the current foundation and future boundaries:
 - `iris.plan_run_advancement`: bounded composition of one StepProgressUpdate,
   one new immutable PlanRun revision, and one current post-mutation
   ControlDecision, without persistence or continuation.
+- `iris.plan_step_execution_binding`: exact-current-revision binding of a
+  selected and prepared PlanStep to an existing PLAN_STEP ExecutionRequest,
+  without activation, handler admission, or execution.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
