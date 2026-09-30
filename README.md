@@ -40,6 +40,9 @@ IRIS 0.1 currently provides:
 - bounded recording of one WP025 execution result as exactly one canonical
   PlanRun observation and one immutable Run revision, without changing
   StepProgress or continuing execution;
+- complete structural collection of one PlanStep's canonical evidence from an
+  explicitly supplied immutable Run revision, followed by exactly one existing
+  outcome-evaluator invocation and no Run mutation;
 - immutable PlanStep outcome assessments over explicitly selected, canonical
   PlanRun evidence, with a conservative replaceable evaluator;
 - immutable StepProgress transition decisions that separate assessment
@@ -869,6 +872,33 @@ outcome, synthesize a progress transition, invoke a handler, retry execution,
 select subsequent work, or continue the Plan. Execution `SUCCEEDED`, `FAILED`,
 and `REJECTED` therefore leave the recording-base StepProgress state unchanged.
 
+## PlanStep complete evidence assessment foundation
+
+`iris.plan_step_evidence_assessment` evaluates the complete canonical evidence
+basis of one PlanStep in one explicitly supplied immutable PlanRun revision:
+
+```text
+Plan + explicit PlanRun revision + step_id
+    → validate PlanRun lineage
+    → resolve the canonical PlanStep
+    → collect every observation scoped exactly to that step
+    → invoke one StepOutcomeEvaluator
+    → validate assessment identity, evidence basis, and time
+    → StepOutcomeAssessment
+    → STOP
+```
+
+Evidence collection is structural: it preserves canonical Run ordering and
+does not rank, filter semantically, or privilege execution observations. Run-
+level observations, other-step observations, blockers, dependencies, and
+StepProgress state do not enter the Step evidence basis.
+
+The assessor establishes no global latest-Run authority. An assessment remains
+an epistemic artifact of its recorded Run revision; WP021 separately determines
+later operational applicability. WP027 performs no observation creation,
+PlanRun mutation, progress transition, update synthesis, retry, execution, or
+automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -936,6 +966,10 @@ The modules below define the current foundation and future boundaries:
   WP025 execution result, one canonical execution observation, one
   `RecordObservationUpdate`, and one immutable next Run revision, without
   outcome assessment, StepProgress mutation, or continuation.
+- `iris.plan_step_evidence_assessment`: read-only composition of one explicit
+  Run revision's complete Step-scoped observation basis with one existing
+  `StepOutcomeEvaluator`, returning one validated `StepOutcomeAssessment` and
+  stopping before transition policy or mutation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
