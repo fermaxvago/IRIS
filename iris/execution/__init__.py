@@ -1,6 +1,6 @@
 """Single-step execution and the explicit IRIS side-effect boundary."""
 
-from iris.execution.contracts import ExecutionHandler
+from iris.execution.contracts import ExecutionHandler, ExecutionStartGate
 from iris.execution.coordinator import ExecutionCoordinator
 from iris.execution.errors import (
     DuplicateExecutionHandlerError,
@@ -37,6 +37,7 @@ __all__ = [
     "ExecutionRequest",
     "ExecutionResult",
     "ExecutionStatus",
+    "ExecutionStartGate",
     "HandlerOutcome",
     "IntelligenceExecutionHandler",
     "IntelligenceExecutionInput",

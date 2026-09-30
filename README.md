@@ -804,6 +804,42 @@ a handler, prove current handler availability, call `ExecutionCoordinator`, or
 invoke a handler. Selection, preparation, request construction, binding,
 runtime admission, and actual execution remain distinct boundaries.
 
+## PlanStep execution start foundation
+
+`iris.plan_step_execution_start` composes a still-current WP024 binding with
+the exact bound `ExecutionRequest` at the real in-process handler boundary:
+
+```text
+current PlanStepExecutionBinding + exact ExecutionRequest
+    → ExecutionCoordinator resolves the concrete handler
+    → no handler: REJECTED, no activation, STOP
+    → handler exists: revalidate currentness
+    → StepProgressUpdate(NOT_STARTED → ACTIVE)
+    → PlanRunReducer derives Run(N+1)
+    → invoke that exact handler once
+    → ExecutionResult
+    → STOP
+```
+
+The generic `ExecutionStartGate` knows nothing about plans or `ACTIVE`; it only
+lets a higher composition commit required start state after concrete handler
+resolution and immediately before invocation. Existing execution callers that
+omit the gate retain WP018 behavior.
+
+`ACTIVE` means that a concrete handler was resolved and the local start
+transition succeeded while execution was crossing toward invocation. It does
+not mean that handler code completed, produced side effects, or achieved the
+PlanStep outcome. Handler `SUCCEEDED`, `FAILED`, and invoked-handler `REJECTED`
+results all leave the step `ACTIVE`; WP019-WP023 remain responsible for later
+evidence interpretation and progress advancement.
+
+This boundary guarantees only that handler invocation implies prior successful
+activation. The reverse is intentionally false: a process failure can occur
+after Run(N+1) is derived and before or during handler user code. WP025 has no
+durable transaction, rollback, retry, reservation, queue, checkpoint, recovery,
+or exactly-once guarantee. Escaping post-activation exceptions preserve the
+derived ACTIVE Run and activation update identity for the caller.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
