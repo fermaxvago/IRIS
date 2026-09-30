@@ -37,6 +37,9 @@ IRIS 0.1 currently provides:
   failures, and an explicit side-effect boundary;
 - explicit adaptation of PLAN_STEP execution results into raw, append-only
   PlanRun observations without outcome interpretation or progress mutation;
+- bounded recording of one WP025 execution result as exactly one canonical
+  PlanRun observation and one immutable Run revision, without changing
+  StepProgress or continuing execution;
 - immutable PlanStep outcome assessments over explicitly selected, canonical
   PlanRun evidence, with a conservative replaceable evaluator;
 - immutable StepProgress transition decisions that separate assessment
@@ -840,6 +843,32 @@ durable transaction, rollback, retry, reservation, queue, checkpoint, recovery,
 or exactly-once guarantee. Escaping post-activation exceptions preserve the
 derived ACTIVE Run and activation update identity for the caller.
 
+## PlanStep execution-result recording foundation
+
+`iris.plan_step_execution_result_recording` records one already-produced WP025
+execution result into the exact immutable Run revision that result is authorized
+to extend:
+
+```text
+PlanStepExecutionStartResult + exact recording-base PlanRun
+    → reconstruct canonical PLAN_STEP WorkSubject
+    → ExecutionObservationAdapter creates one PlanObservation
+    → one RecordObservationUpdate
+    → PlanRunReducer derives Run(N+1)
+    → unchanged StepProgress
+    → STOP
+```
+
+For a started attempt, the exact base is WP025's returned `ACTIVE` Run. For
+handler unavailability, it is the original `NOT_STARTED` Run at the WP025 source
+revision. Reusing the same start result against WP026's descendant Run is a
+lineage error before observation adaptation.
+
+Recording preserves the execution fact; it does not assess the expected
+outcome, synthesize a progress transition, invoke a handler, retry execution,
+select subsequent work, or continue the Plan. Execution `SUCCEEDED`, `FAILED`,
+and `REJECTED` therefore leave the recording-base StepProgress state unchanged.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -903,6 +932,10 @@ The modules below define the current foundation and future boundaries:
 - `iris.plan_step_execution_binding`: exact-current-revision binding of a
   selected and prepared PlanStep to an existing PLAN_STEP ExecutionRequest,
   without activation, handler admission, or execution.
+- `iris.plan_step_execution_result_recording`: exact-base composition of one
+  WP025 execution result, one canonical execution observation, one
+  `RecordObservationUpdate`, and one immutable next Run revision, without
+  outcome assessment, StepProgress mutation, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
