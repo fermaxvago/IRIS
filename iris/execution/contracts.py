@@ -1,5 +1,6 @@
 """Replaceable contracts used by the single-step execution layer."""
 
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from iris.execution.models import ExecutionRequest, HandlerOutcome
@@ -26,6 +27,21 @@ class ExecutionHandler(Protocol):
 
     def execute(self, request: ExecutionRequest) -> HandlerOutcome:
         """Perform at most one subsystem invocation."""
+        ...
+
+
+@runtime_checkable
+class ExecutionStartGate(Protocol):
+    """Commit higher-level start state immediately before handler invocation."""
+
+    def commit_start(
+        self,
+        request: ExecutionRequest,
+        *,
+        start_boundary_at: datetime,
+        handler_reference: str,
+    ) -> None:
+        """Allow invocation only after the caller-owned start commit succeeds."""
         ...
 
 

@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from types import MappingProxyType
 
-from iris.execution.contracts import ExecutionHandler
+from iris.execution.contracts import ExecutionHandler, ExecutionStartGate
 from iris.execution.errors import (
     DuplicateExecutionHandlerError,
     ExecutionContractError,
@@ -62,11 +62,18 @@ class ExecutionCoordinator:
             (lambda: datetime.now(UTC)) if clock is None else clock
         )
 
-    def execute(self, request: ExecutionRequest) -> ExecutionResult:
+    def execute(
+        self,
+        request: ExecutionRequest,
+        *,
+        start_gate: ExecutionStartGate | None = None,
+    ) -> ExecutionResult:
         """Dispatch exactly one admissible attempt; never retry or fall back."""
 
         if not isinstance(request, ExecutionRequest):
             raise TypeError("request must be an ExecutionRequest")
+        if start_gate is not None and not isinstance(start_gate, ExecutionStartGate):
+            raise TypeError("start_gate must implement ExecutionStartGate")
         started_at = utc_time(self._clock(), "execution started_at")
         if started_at < request.created_at:
             raise ValueError("execution cannot start before its request")
@@ -96,6 +103,20 @@ class ExecutionCoordinator:
                 ),
             )
 
+        completion_floor = started_at
+        if start_gate is not None:
+            start_boundary_at = utc_time(
+                self._clock(), "execution start boundary timestamp"
+            )
+            if start_boundary_at < started_at:
+                raise ValueError("execution start boundary cannot predate its start")
+            start_gate.commit_start(
+                request,
+                start_boundary_at=start_boundary_at,
+                handler_reference=handler.handler_reference,
+            )
+            completion_floor = start_boundary_at
+
         outcome = handler.execute(request)
         if not isinstance(outcome, HandlerOutcome):
             raise ExecutionContractError("handler must return HandlerOutcome")
@@ -104,7 +125,7 @@ class ExecutionCoordinator:
             status=outcome.status,
             handler_reference=handler.handler_reference,
             started_at=started_at,
-            completed_at=self._completion_time(started_at),
+            completed_at=self._completion_time(completion_floor),
             output=outcome.output,
             failure=outcome.failure,
             metadata=outcome.metadata,

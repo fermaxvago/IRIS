@@ -159,7 +159,7 @@ per entry. License notes are a basic provenance record, not legal advice.
   state; bounded state-change handling; scheduling and runtime lifecycle.
 - **Date registered:** 2026-09-29
 - **Last verified:** 2026-09-30
-- **Relevant Work Packages:** WP023; WP024.
+- **Relevant Work Packages:** WP023; WP024; WP025.
 - **Research history:** WP023 reviewed the current official controller
   documentation on 2026-09-29. **FACT:** Kubernetes controllers are control
   loops that observe current cluster state and make or request changes toward
@@ -178,6 +178,17 @@ per entry. License notes are a basic provenance record, not legal advice.
   phases, scheduling gates, controllers, and recovery behavior are not
   adopted. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN` for importing
   the scheduler lifecycle.
+  WP025 reverified official Pod lifecycle documentation on 2026-09-30.
+  **FACT:** after binding a Pod to a node, Kubernetes only tries to run it, and
+  a node failure before start can leave that Pod never started; `Running`
+  additionally requires created containers with at least one running,
+  starting, or restarting. **INFERENCE:** resource resolution and a local
+  running-state transition cannot prove that user code or external effects
+  occurred. **IRIS DECISION:** WP025 resolves the real in-process handler before
+  activation and invokes it only after `ACTIVE` succeeds, while explicitly
+  accepting the crash window after activation. Kubernetes controllers,
+  replacement Pods, scheduling, recovery, and distributed reconciliation are
+  rejected. Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** None recorded.
 - **Influenced decisions:** The controller receives only the Run produced by
   the reducer, never the pre-update Run. PlanStep execution binding remains a
@@ -200,7 +211,7 @@ per entry. License notes are a basic provenance record, not legal advice.
   bounded progression and replay; Activity scheduling and start boundaries.
 - **Date registered:** 2026-09-29
 - **Last verified:** 2026-09-30
-- **Relevant Work Packages:** WP023; WP024.
+- **Relevant Work Packages:** WP023; WP024; WP025.
 - **Research history:** WP023 reviewed current official Event History,
   Workflow Task, and workflow-definition documentation on 2026-09-29. **FACT:**
   Temporal records workflow progression in Event History, and a Worker replays
@@ -218,6 +229,16 @@ per entry. License notes are a basic provenance record, not legal advice.
   lineage binding and deliberately excludes task queues, worker admission,
   start events, durable history, and retries. Analysis outcomes: `INFLUENCED`
   and `REJECTED_PATTERN` for adopting Temporal runtime machinery.
+  WP025 reverified official task documentation on 2026-09-30. **FACT:**
+  `ActivityTaskScheduled` records queue placement, `ActivityTaskStarted` records
+  worker pickup, and Temporal's effectively-once experience depends on durable
+  history, task execution semantics, retry/deduplication, and idempotency rather
+  than on a single local state write. **INFERENCE:** strong delivery guarantees
+  require durable machinery beyond an in-memory activation boundary. **IRIS
+  DECISION:** WP025 adopts only an explicit start gate immediately before one
+  handler invocation; it rejects Event History, task queues, replay,
+  heartbeats, retries, deduplication, and effectively-once claims. Analysis
+  outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** None recorded.
 - **Influenced decisions:** The post-mutation control decision is anchored to
   the newly derived Run revision. A later execution binding is likewise
@@ -238,7 +259,7 @@ per entry. License notes are a basic provenance record, not legal advice.
 - **Relevant areas:** task lifecycle; scheduler; executor queue; worker start.
 - **Date registered:** 2026-09-30
 - **Last verified:** 2026-09-30
-- **Relevant Work Packages:** WP024.
+- **Relevant Work Packages:** WP024; WP025.
 - **Research history:** WP024 reviewed current official task lifecycle
   documentation on 2026-09-30. **FACT:** Airflow represents `scheduled`,
   `queued`, and `running` as distinct Task Instance states: dependency
@@ -248,6 +269,15 @@ per entry. License notes are a basic provenance record, not legal advice.
   keeps `PlanStepExecutionBinding` pre-activation and does not import Airflow's
   scheduler, executor, queue, task-state vocabulary, or persistence. Analysis
   outcomes: `INFLUENCED` and `REJECTED_PATTERN` for the full lifecycle model.
+  WP025 reverified official Task Instance lifecycle documentation on
+  2026-09-30. **FACT:** Airflow distinguishes `scheduled`, `queued`, `running`,
+  and terminal states, and worker-side execution is represented separately from
+  scheduler/executor eligibility. **INFERENCE:** handler availability and
+  running work are distinct from prior selection, and completion is distinct
+  again. **IRIS DECISION:** WP025 performs only local handler resolution,
+  `ACTIVE` commit, and immediate invocation; it adds no scheduler, executor
+  queue, worker slot, heartbeat, retry policy, or Airflow lifecycle states.
+  Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** None recorded.
 - **Influenced decisions:** Binding proves current lineage only and never
   changes `StepProgress` to `ACTIVE`.
@@ -268,7 +298,7 @@ per entry. License notes are a basic provenance record, not legal advice.
 - **Relevant areas:** distributed tasks; worker execution; task-state events.
 - **Date registered:** 2026-09-30
 - **Last verified:** 2026-09-30
-- **Relevant Work Packages:** WP024.
+- **Relevant Work Packages:** WP024; WP025.
 - **Research history:** WP024 reviewed current official task documentation on
   2026-09-30. **FACT:** Celery's optional `STARTED` status is reported when a
   task is executed by a worker and is distinct from pending, completed, or
@@ -278,6 +308,15 @@ per entry. License notes are a basic provenance record, not legal advice.
   retry state, and result backends remain outside the subsystem. Analysis
   outcomes: `INFLUENCED` and `REJECTED_PATTERN` for importing the distributed
   task runtime.
+  WP025 reverified official task documentation on 2026-09-30. **FACT:** Celery
+  reports optional `STARTED` when a worker executes a task; late acknowledgement
+  can still permit multiple executions when a worker crashes, so tasks should
+  be idempotent. **INFERENCE:** marking work started is not an exactly-once or
+  transactional guarantee. **IRIS DECISION:** WP025 records local `ACTIVE`
+  before calling one resolved handler and documents the remaining crash window;
+  it rejects brokers, acknowledgements, durable result backends, worker claims,
+  retries, and idempotency claims. Analysis outcomes: `INFLUENCED` and
+  `REJECTED_PATTERN`.
 - **Known changes:** None recorded.
 - **Influenced decisions:** `PlanStepExecutionBinding` is not an execution-start
   signal.
@@ -399,7 +438,7 @@ per entry. License notes are a basic provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-30
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021; WP022; WP023; WP024.
+  WP018; WP019; WP020; WP021; WP022; WP023; WP024; WP025.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 relevance screening on
   2026-09-25 reviewed its gateway, channel, and integration boundaries; these
@@ -480,6 +519,16 @@ per entry. License notes are a basic provenance record, not legal advice.
   revision and stops before handler admission or invocation. TaskFlow storage,
   task linking, sessions, queues, retries, and lifecycle states are not
   adopted. Analysis outcome: `INFLUENCED`.
+  WP025 reverified the current TaskFlow distinction on 2026-09-30. **FACT:**
+  durable record creation and linking an existing authoritative execution are
+  separate from launching runtime work, and revision-aware operations can
+  reject stale state. **INFERENCE:** PlanStep lineage must be checked again at
+  the invocation boundary, but durable execution guarantees require machinery
+  beyond a local check. **IRIS DECISION:** WP025 revalidates the exact binding,
+  commits one local `ACTIVE` revision, and immediately invokes the already
+  resolved handler; it rejects managed-flow storage, linking, sessions,
+  background runs, retries, queues, and recovery. Analysis outcomes:
+  `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Not recorded.
 - **Influenced decisions:** WP012 keeps tool/runtime outcomes separate from
   PlanObservation and StepProgress transitions; no OpenClaw lifecycle or retry
@@ -585,7 +634,7 @@ per entry. License notes are a basic provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-30
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021; WP022; WP023; WP024.
+  WP018; WP019; WP020; WP021; WP022; WP023; WP024; WP025.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed explicit graph
   nodes/edges and their relationship to runtime state on 2026-09-25. IRIS kept
@@ -662,6 +711,15 @@ per entry. License notes are a basic provenance record, not legal advice.
   lineage witness; it does not invoke a graph node, persist state, checkpoint,
   resume, retry, or route onward. Analysis outcomes: `REVIEWED` and
   `REJECTED_PATTERN` for importing the runtime.
+  WP025 reverified current persistence documentation on 2026-09-30. **FACT:**
+  LangGraph checkpointers persist graph state for continuation, interruption
+  recovery, and resume beyond one run. **INFERENCE:** recoverable start and
+  exactly-once-like behavior need durable state and replay/idempotency
+  mechanisms, not merely an in-memory state transition. **IRIS DECISION:**
+  WP025 adopts no graph runtime; it uses one local activation gate and documents
+  that a crash may leave `ACTIVE` without completed handler invocation.
+  Checkpoints, replay, resume, retries, stores, and automatic routing are
+  rejected. Analysis outcomes: `REVIEWED` and `REJECTED_PATTERN`.
   WP023 reverified current Graph API `Command` documentation on 2026-09-29.
   **FACT:** a LangGraph `Command` can combine state updates and routing to a
   next node in one returned value. **INFERENCE:** that integration is useful in
@@ -716,7 +774,7 @@ per entry. License notes are a basic provenance record, not legal advice.
 - **Date registered:** 2026-09-25
 - **Last verified:** 2026-09-30
 - **Relevant Work Packages:** WP011; WP012; WP013; WP014; WP015; WP016; WP017;
-  WP018; WP019; WP020; WP021; WP022; WP023; WP024.
+  WP018; WP019; WP020; WP021; WP022; WP023; WP024; WP025.
 - **Research history:** Initial identity, relevance, and basic provenance review
   during registry initialization on 2026-09-25. WP011 reviewed graph-based
   workflows, explicit execution paths, and the distinction between agents and
@@ -802,6 +860,16 @@ per entry. License notes are a basic provenance record, not legal advice.
   current-revision witness and does not adopt executor invocation, message
   routing, event streaming, checkpointing, or the superstep runtime. Analysis
   outcome: `INFLUENCED`.
+  WP025 reverified official workflow and checkpoint documentation on
+  2026-09-30. **FACT:** Agent Framework invokes bound executors within a
+  workflow runtime, while checkpoints are created at completed superstep
+  boundaries and capture executor, pending-message/request, and shared state
+  for later resume. **INFERENCE:** durable recovery is a wider boundary than
+  committing local PlanStep start immediately before one executor call. **IRIS
+  DECISION:** WP025 adopts only a typed execution-start gate between concrete
+  handler resolution and invocation; it rejects workflow supersteps, event
+  streaming, checkpoint storage, resume, shared state, and durable hosting.
+  Analysis outcomes: `INFLUENCED` and `REJECTED_PATTERN`.
 - **Known changes:** Record as a related project when assessing the evolution or
   conceptual succession of AutoGen ideas. No equivalence between the projects is
   assumed.
