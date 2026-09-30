@@ -907,6 +907,12 @@ The modules below define the current foundation and future boundaries:
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
 
+## Architecture continuity
+
+The [latest Architecture Continuity Checkpoint](docs/architecture/continuity/LATEST.md)
+records the system's architectural state, authority boundaries, and forward
+hypotheses at a specific canonical commit.
+
 ## Configuration and secrets
 
 Local Ollama requires no secret. Its endpoint, provider identity, and timeout
