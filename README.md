@@ -899,6 +899,26 @@ later operational applicability. WP027 performs no observation creation,
 PlanRun mutation, progress transition, update synthesis, retry, execution, or
 automatic continuation.
 
+## PlanStep evidence-assessment transition composition
+
+`iris.plan_step_evidence_transition` composes the existing WP027 and WP021
+boundaries over one explicitly supplied immutable PlanRun revision:
+
+```text
+Plan + explicit PlanRun revision + step_id
+    → PlanStepEvidenceAssessor produces one complete-basis assessment
+    → resolve the canonical PlanStep
+    → StepProgressTransitionDecider produces one operational decision
+    → validate decision currentness against that same Run revision
+    → assessment + transition decision
+    → STOP
+```
+
+The assessment and decision remain distinct artifacts and observe the same Run
+revision. A valid `NO_TRANSITION` is returned normally. WP028 creates no
+`StepProgressUpdate`, invokes no reducer or controller, mutates no Run, and does
+not continue execution; WP022 and WP023 retain those later responsibilities.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -970,6 +990,10 @@ The modules below define the current foundation and future boundaries:
   Run revision's complete Step-scoped observation basis with one existing
   `StepOutcomeEvaluator`, returning one validated `StepOutcomeAssessment` and
   stopping before transition policy or mutation.
+- `iris.plan_step_evidence_transition`: read-only composition of WP027 complete
+  evidence assessment with one WP021 transition decision and canonical decision
+  currentness validation, preserving both artifacts without update synthesis,
+  Run mutation, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
