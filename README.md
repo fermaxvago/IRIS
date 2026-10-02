@@ -939,6 +939,21 @@ one successor Run and one fresh ControlDecision.
 The returned ControlDecision is inert. WP030 does not activate selected work,
 execute a step, retry, persist state, recompute control, or continue the Plan.
 
+## Post-advancement PlanStep handling preparation
+
+`iris.plan_step_handling_preparation` composes WP030 with WP014. It invokes
+WP030 exactly once and stops without handling preparation when no advancement
+exists or when the exact fresh post-advancement `ControlDecision` is not
+`STEP_SELECTED`. Only `STEP_SELECTED` authorizes exactly one WP014 preparation
+against the exact successor Run and exact fresh decision, without accepting or
+resolving a `StepHandlingSpecification`.
+
+The exact WP014 result is returned whether its status is `PREPARED`,
+`HANDLING_UNSPECIFIED`, or `INSUFFICIENT_DETAIL`. WP031 performs no additional
+control, specification lookup, orchestration, activation, execution, mutation,
+retry, or continuation. Fresh control and prepared handling remain inert
+artifacts at this boundary.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1021,6 +1036,10 @@ The modules below define the current foundation and future boundaries:
 - `iris.plan_step_progress_advancement`: bounded WP029-to-WP023 composition
   that conditionally derives one immutable successor Run and preserves its one
   fresh inert ControlDecision, without execution or continuation.
+- `iris.plan_step_handling_preparation`: bounded WP030-to-WP014 composition
+  that optionally prepares the exact fresh selected PlanStep's declared
+  handling without specification resolution, orchestration, execution, or
+  continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
