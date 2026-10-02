@@ -929,6 +929,16 @@ exactly once only for `TRANSITION`. A `NO_TRANSITION` result carries no update.
 The optional `StepProgressUpdate` is inert and revision-bound. WP029 does not
 apply it, invoke a reducer or WP023, mutate the Run, retry, or continue the Plan.
 
+## PlanStep progress advancement composition
+
+`iris.plan_step_progress_advancement` composes WP029 with WP023 over one
+explicit immutable PlanRun revision. It runs WP029 exactly once and, only when
+an update exists, passes that exact update through WP023 exactly once to obtain
+one successor Run and one fresh ControlDecision.
+
+The returned ControlDecision is inert. WP030 does not activate selected work,
+execute a step, retry, persist state, recompute control, or continue the Plan.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1008,6 +1018,9 @@ The modules below define the current foundation and future boundaries:
   composition that preserves the assessment and transition decision and
   optionally prepares one inert `StepProgressUpdate`, without Run mutation or
   advancement.
+- `iris.plan_step_progress_advancement`: bounded WP029-to-WP023 composition
+  that conditionally derives one immutable successor Run and preserves its one
+  fresh inert ControlDecision, without execution or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
