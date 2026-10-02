@@ -562,6 +562,7 @@ def canonical_advancement() -> tuple[
         "control_plan",
         "control_run",
         "control_revision",
+        "control_type",
         "observations",
         "blockers",
         "target",
@@ -606,6 +607,8 @@ def test_malformed_wp023_outputs_are_rejected(mismatch: str) -> None:
             value = updated.updated_at + timedelta(seconds=1)
             changed = unsafe_run(updated, updated_at=value)
         forced = unsafe_advancement(advancement, updated_run=changed)
+    elif mismatch == "control_type":
+        forced = unsafe_advancement(advancement, control_decision=object())
     elif mismatch.startswith("control_"):
         field_name = mismatch.removeprefix("control_")
         if field_name == "plan":
@@ -656,6 +659,21 @@ def test_malformed_wp023_outputs_are_rejected(mismatch: str) -> None:
             progress_advancer=advancer,
         ).compose(plan, run, "a")
     assert len(advancer.calls) == 1
+
+
+def test_exact_wp023_result_object_is_preserved() -> None:
+    plan, run, preparation, advancement = canonical_advancement()
+
+    result = PlanStepProgressAdvancementComposer(
+        progress_update_preparer=RecordingPreparer(
+            preparer_for(StepOutcomeStatus.SATISFIED), forced=preparation
+        ),
+        progress_advancer=RecordingAdvancer(
+            PlanRunProgressAdvancer(), forced=advancement
+        ),
+    ).compose(plan, run, "a")
+
+    assert result.advancement_result is advancement
 
 
 def test_wp029_failure_propagates_without_wp023() -> None:

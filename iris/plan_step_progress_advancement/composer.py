@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from iris.outcome_assessment import StepOutcomeAssessment
+from iris.plan_control import ControlDecision
 from iris.plan_run_advancement import (
     PlanRunProgressAdvancer,
     PlanRunProgressAdvanceResult,
@@ -157,6 +158,10 @@ class PlanStepProgressAdvancementComposer:
         if not isinstance(updated_run, PlanRun):
             raise PlanStepProgressAdvancementInvariantError(
                 "WP023 result must contain a canonical PlanRun"
+            )
+        if not isinstance(control, ControlDecision):
+            raise PlanStepProgressAdvancementInvariantError(
+                "WP023 result must contain a canonical ControlDecision"
             )
         if (
             advancement.source_update_id != update.update_id
