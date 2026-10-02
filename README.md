@@ -971,6 +971,21 @@ by the advancement and fresh control artifacts. WP032 creates no Context,
 orchestration, execution request, binding, activation, execution, second
 control pass, or continuation.
 
+## Post-selection WorkSubject Context materialization
+
+`iris.plan_step_context_materialization` composes WP032 with the existing WP016
+`ContextEngine`. It invokes WP032 exactly once and builds no snapshot when no
+selected `WorkSubject` exists. When a subject exists, WP033 invokes WP016
+exactly once with that exact subject and the caller's explicit candidates,
+uncertainties, budget, and creation time, then stops.
+
+Snapshot absence means only that no WorkSubject existed. An empty snapshot is
+still a real `ContextSnapshot`, and `RESOLVED`, `PARTIAL`, `AMBIGUOUS`, and
+`CONFLICTED` remain legitimate terminal results. WP033 performs no candidate
+discovery, Memory retrieval, WorkOrigin synthesis, orchestration, execution,
+retry, persistence, or continuation. Context ownership remains stable
+WorkSubject ownership and does not prove a PlanRun revision.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1061,6 +1076,10 @@ The modules below define the current foundation and future boundaries:
   composition that optionally materializes the exact fresh selected PlanStep's
   stable work identity against the successor Run, without origin synthesis,
   Context, orchestration, execution, or continuation.
+- `iris.plan_step_context_materialization`: bounded WP032-to-WP016 composition
+  that optionally builds one exact WorkSubject-owned ContextSnapshot from
+  explicit caller inputs, without discovery, retrieval, orchestration,
+  execution, persistence, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
