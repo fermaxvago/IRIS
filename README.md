@@ -954,6 +954,23 @@ control, specification lookup, orchestration, activation, execution, mutation,
 retry, or continuation. Fresh control and prepared handling remain inert
 artifacts at this boundary.
 
+## Post-advancement selected-Step WorkSubject materialization
+
+`iris.plan_step_work_subject_materialization` composes WP031 with the existing
+WP015 PlanStep identity adapter. It invokes WP031 exactly once and produces no
+subject when there is no advancement or when fresh post-advancement control is
+not `STEP_SELECTED`. Only `STEP_SELECTED` authorizes exactly one WP015 call,
+using the exact successor Run and the freshly selected Step identity. The
+processed Step and newly selected Step may differ.
+
+`PREPARED`, `HANDLING_UNSPECIFIED`, and `INSUFFICIENT_DETAIL` handling outcomes
+all remain compatible with stable work identity. The resulting canonical
+`PLAN_STEP` `WorkSubject` has no synthesized `WorkOrigin`, and its identity does
+not encode PlanRun revision; successor revision currentness remains represented
+by the advancement and fresh control artifacts. WP032 creates no Context,
+orchestration, execution request, binding, activation, execution, second
+control pass, or continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1040,6 +1057,10 @@ The modules below define the current foundation and future boundaries:
   that optionally prepares the exact fresh selected PlanStep's declared
   handling without specification resolution, orchestration, execution, or
   continuation.
+- `iris.plan_step_work_subject_materialization`: bounded WP031-to-WP015
+  composition that optionally materializes the exact fresh selected PlanStep's
+  stable work identity against the successor Run, without origin synthesis,
+  Context, orchestration, execution, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
