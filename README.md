@@ -919,6 +919,16 @@ revision. A valid `NO_TRANSITION` is returned normally. WP028 creates no
 `StepProgressUpdate`, invokes no reducer or controller, mutates no Run, and does
 not continue execution; WP022 and WP023 retain those later responsibilities.
 
+## PlanStep progress-update preparation
+
+`iris.plan_step_progress_update_preparation` composes WP028 with WP022 over one
+explicit immutable PlanRun revision. It preserves WP028's exact assessment and
+transition decision, branches only on the decision action, and invokes WP022
+exactly once only for `TRANSITION`. A `NO_TRANSITION` result carries no update.
+
+The optional `StepProgressUpdate` is inert and revision-bound. WP029 does not
+apply it, invoke a reducer or WP023, mutate the Run, retry, or continue the Plan.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -994,6 +1004,10 @@ The modules below define the current foundation and future boundaries:
   evidence assessment with one WP021 transition decision and canonical decision
   currentness validation, preserving both artifacts without update synthesis,
   Run mutation, or continuation.
+- `iris.plan_step_progress_update_preparation`: bounded WP028-to-WP022
+  composition that preserves the assessment and transition decision and
+  optionally prepares one inert `StepProgressUpdate`, without Run mutation or
+  advancement.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
