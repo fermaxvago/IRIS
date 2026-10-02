@@ -986,6 +986,24 @@ discovery, Memory retrieval, WorkOrigin synthesis, orchestration, execution,
 retry, persistence, or continuation. Context ownership remains stable
 WorkSubject ownership and does not prove a PlanRun revision.
 
+## Post-Context selected-Step orchestration
+
+`iris.plan_step_orchestration` composes WP033 with the existing WP017
+`Orchestrator`. It invokes WP033 exactly once. No selected WorkSubject/Context,
+`HANDLING_UNSPECIFIED`, and `INSUFFICIENT_DETAIL` all stop without
+orchestration. `PREPARED` handling invokes WP017 exactly once using the exact
+upstream WorkSubject, ContextSnapshot, revision-sensitive HandlingNeed, and
+caller-supplied HandlerAvailability, then preserves the resulting decision and
+stops. An unavailable prepared handler therefore produces a real canonical
+`UNSATISFIED` decision rather than decision absence.
+
+WP034 performs no handler discovery, handling enrichment, ContextBlocker
+synthesis, execution request construction, binding, activation, execution,
+mutation, retry, or continuation. Context status alone does not authorize
+clarification; availability is neither authorization nor a durable freshness
+proof; and an `OrchestrationDecision` remains an inert decision bound to the
+exact WorkSubject and ContextSnapshot, not permission to execute.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1080,6 +1098,10 @@ The modules below define the current foundation and future boundaries:
   that optionally builds one exact WorkSubject-owned ContextSnapshot from
   explicit caller inputs, without discovery, retrieval, orchestration,
   execution, persistence, or continuation.
+- `iris.plan_step_orchestration`: bounded WP033-to-WP017 composition that
+  optionally produces one exact Context-bound OrchestrationDecision for
+  canonically prepared selected-step handling, without need enrichment,
+  handler discovery, execution, mutation, retry, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
