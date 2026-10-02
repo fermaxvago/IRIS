@@ -114,6 +114,12 @@ class PlanStepProgressUpdatePreparer:
             )
         assessment = result.assessment
         decision = result.transition_decision
+        if not isinstance(assessment, StepOutcomeAssessment) or not isinstance(
+            decision, StepProgressTransitionDecision
+        ):
+            raise PlanStepProgressUpdatePreparationInvariantError(
+                "WP028 result must contain canonical assessment and decision types"
+            )
         if (
             assessment.plan_id != plan.plan_id
             or assessment.run_id != run.run_id
@@ -149,6 +155,7 @@ class PlanStepProgressUpdatePreparer:
             or update.evidence_ids != assessment.evidence_ids
             or update.provenance.source_type != "step_progress_transition"
             or update.provenance.source_id != decision.decision_id
+            or update.provenance.actor is not None
         ):
             raise PlanStepProgressUpdatePreparationInvariantError(
                 "WP022 update does not match the supplied Run, assessment, and decision"

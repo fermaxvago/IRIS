@@ -65,6 +65,7 @@ class PlanStepProgressUpdatePreparationResult:
             or update.evidence_ids != self.assessment.evidence_ids
             or update.provenance.source_type != "step_progress_transition"
             or update.provenance.source_id != decision.decision_id
+            or update.provenance.actor is not None
         ):
             raise PlanStepProgressUpdatePreparationInvariantError(
                 "progress update does not match its assessment and transition decision"

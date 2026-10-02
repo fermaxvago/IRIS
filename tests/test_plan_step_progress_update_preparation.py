@@ -484,7 +484,15 @@ def canonical_transition_artifacts() -> tuple[
 
 @pytest.mark.parametrize(
     "mismatch",
-    ["run_id", "revision", "step_id", "target", "evidence", "provenance"],
+    [
+        "run_id",
+        "revision",
+        "step_id",
+        "target",
+        "evidence",
+        "provenance",
+        "actor",
+    ],
 )
 def test_wp022_postconditions_reject_injected_update_contradictions(
     mismatch: str,
@@ -500,8 +508,17 @@ def test_wp022_postconditions_reject_injected_update_contradictions(
         update = replace(update, new_state=StepProgressState.FAILED)
     elif mismatch == "evidence":
         update = replace(update, evidence_ids=("other-evidence",))
-    else:
+    elif mismatch == "provenance":
         update = replace(update, provenance=RunProvenance("other", "source"))
+    else:
+        update = replace(
+            update,
+            provenance=RunProvenance(
+                "step_progress_transition",
+                transition.transition_decision.decision_id,
+                "actor-1",
+            ),
+        )
     composer = RecordingComposer(composer_for(StepOutcomeStatus.SATISFIED), transition)
     synthesizer = RecordingSynthesizer(synthesizer_for(), forced=update)
 
