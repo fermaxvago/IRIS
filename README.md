@@ -1022,6 +1022,22 @@ identity, bind or activate a PlanStep, invoke an `ExecutionCoordinator`, run a
 handler, mutate a PlanRun, retry, persist, or continue. An `ExecutionRequest`
 is an inert request artifact, not execution authorization or execution itself.
 
+## Post-request PlanStep execution binding composition
+
+`iris.plan_step_execution_binding_composition` composes WP035 with the existing
+WP024 `PlanStepExecutionBinder`. It invokes WP035 exactly once. Request absence
+stops successfully with no binder call and `execution_binding=None`. Request
+presence invokes WP024 exactly once using the exact successor pre-activation
+PlanRun, fresh ControlDecision, current handling preparation, and canonical
+ExecutionRequest preserved by WP035.
+
+WP024 remains the sole bindability authority. Terminal `CLARIFY` and
+`UNSATISFIED` requests therefore reach WP024 and retain its canonical rejection
+rather than becoming successful no-binding outcomes. A successful binding is
+only a current-revision lineage witness: WP036 performs no admission,
+activation, handler resolution, execution, result recording, retry,
+persistence, or continuation, and it stops at the exact WP024 binding.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1124,6 +1140,11 @@ The modules below define the current foundation and future boundaries:
   composition that optionally materializes one exact ExecutionRequest from
   explicit execution operands, including terminal requests, without binding,
   activation, execution, mutation, retry, persistence, or continuation.
+- `iris.plan_step_execution_binding_composition`: bounded WP035-to-WP024
+  composition that optionally binds the exact canonical request to the fresh
+  selected PlanStep at the successor pre-activation revision, without
+  admission, activation, handler resolution, execution, retry, persistence, or
+  continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
