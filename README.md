@@ -1073,6 +1073,23 @@ state. A post-ACTIVE `PlanStepExecutionInvocationError` remains exceptional and
 is propagated without synthetic result or observation construction. WP038 does
 not invoke WP027, retry execution, roll back activation, or continue the Plan.
 
+## Post-recording PlanStep complete-evidence assessment composition
+
+`iris.plan_step_execution_evidence_assessment_composition` composes WP038 with
+the existing WP027 `PlanStepEvidenceAssessor`. WP038 is invoked exactly once.
+Recording absence stops successfully without calling WP027 and preserves the
+earlier cumulative `assessment`. Recording presence invokes WP027 exactly once
+with the exact recorded Run and the exact recorded step, preserves its complete
+Step-scoped evidence assessment separately as `post_recording_assessment`, and
+stops.
+
+The newly recorded execution observation must belong to that complete evidence
+basis, but WP039 does not assess only the new observation. Handler-unavailable
+evidence and invoked `SUCCEEDED`, `FAILED`, or `REJECTED` results all take the
+same assessment path. WP039 does not map `ExecutionStatus` or StepProgress to an
+outcome, invoke transition policy, mutate a Run, retry, recover, or continue the
+Plan. Post-ACTIVE invocation exceptions remain exceptional and unrecorded.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1184,6 +1201,15 @@ The modules below define the current foundation and future boundaries:
   composition that optionally starts the exact bound selected PlanStep through
   an explicitly configured runtime, without result recording, assessment,
   retry, recovery, persistence, or continuation.
+- `iris.plan_step_execution_result_recording_composition`: bounded
+  WP037-to-WP026 composition that optionally records one normal start result
+  against its exact canonical Run, without interpreting execution status,
+  changing StepProgress, assessing evidence, retrying, or continuing.
+- `iris.plan_step_execution_evidence_assessment_composition`: bounded
+  WP038-to-WP027 composition that optionally assesses the exact recorded step's
+  complete evidence basis on the exact recorded Run while preserving the prior
+  assessment separately, without transition policy, mutation, retry, recovery,
+  or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
