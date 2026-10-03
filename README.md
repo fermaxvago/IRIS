@@ -1004,6 +1004,24 @@ clarification; availability is neither authorization nor a durable freshness
 proof; and an `OrchestrationDecision` remains an inert decision bound to the
 exact WorkSubject and ContextSnapshot, not permission to execute.
 
+## Post-orchestration ExecutionRequest materialization
+
+`iris.plan_step_execution_request_materialization` composes WP034 with the
+existing WP018 `ExecutionRequest` model. It invokes WP034 exactly once. When no
+`OrchestrationDecision` exists, no request identity or request timestamp is
+generated and the boundary returns `execution_request=None`. When a decision
+exists, WP035 creates exactly one request from the exact upstream WorkSubject,
+ContextSnapshot, and decision, plus the caller's explicit execution input, and
+then stops.
+
+Terminal `UNSATISFIED` (and globally valid `CLARIFY`) decisions still support
+real requests with no execution input; request existence is not filtered by
+WP024 PlanStep bindability. Executable targets retain WP018's target-specific
+input validation. WP035 does not infer operands, enrich generic capability
+identity, bind or activate a PlanStep, invoke an `ExecutionCoordinator`, run a
+handler, mutate a PlanRun, retry, persist, or continue. An `ExecutionRequest`
+is an inert request artifact, not execution authorization or execution itself.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1102,6 +1120,10 @@ The modules below define the current foundation and future boundaries:
   optionally produces one exact Context-bound OrchestrationDecision for
   canonically prepared selected-step handling, without need enrichment,
   handler discovery, execution, mutation, retry, or continuation.
+- `iris.plan_step_execution_request_materialization`: bounded WP034-to-WP018
+  composition that optionally materializes one exact ExecutionRequest from
+  explicit execution operands, including terminal requests, without binding,
+  activation, execution, mutation, retry, persistence, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
