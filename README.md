@@ -1054,6 +1054,25 @@ at N+2. Handler `SUCCEEDED`, `FAILED`, and invoked `REJECTED` outcomes all leave
 the selected step ACTIVE; WP037 neither records nor assesses the ExecutionResult
 and never continues the Plan.
 
+## Post-start PlanStep execution-result recording composition
+
+`iris.plan_step_execution_result_recording_composition` composes WP037 with the
+existing WP026 `PlanStepExecutionResultRecorder`. WP037 is invoked exactly once.
+Start-result absence stops successfully without calling WP026. A normal start
+result invokes WP026 exactly once using the exact `ACTIVE` Run when activation
+occurred, or the exact pre-activation successor Run when handler unavailability
+left the selected step `NOT_STARTED`, then preserves the exact recording result
+and stops.
+
+Handler unavailability is therefore recordable execution evidence rather than
+result absence. Invoked `SUCCEEDED`, `FAILED`, and `REJECTED` outcomes are also
+recorded as uninterpreted facts against their exact `ACTIVE` Run. Recording
+advances the chosen Run by one evidence revision while preserving StepProgress;
+it does not assess the expected outcome or map `ExecutionStatus` to a progress
+state. A post-ACTIVE `PlanStepExecutionInvocationError` remains exceptional and
+is propagated without synthetic result or observation construction. WP038 does
+not invoke WP027, retry execution, roll back activation, or continue the Plan.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
