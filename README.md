@@ -1090,6 +1090,23 @@ same assessment path. WP039 does not map `ExecutionStatus` or StepProgress to an
 outcome, invoke transition policy, mutate a Run, retry, recover, or continue the
 Plan. Post-ACTIVE invocation exceptions remain exceptional and unrecorded.
 
+## Post-assessment PlanStep transition-decision composition
+
+`iris.plan_step_execution_transition_decision_composition` composes WP039 with
+the existing WP021 `StepProgressTransitionDecider`. WP039 is invoked exactly
+once. Post-recording assessment absence stops successfully without calling the
+decider. Assessment presence supplies WP021 with the exact recorded Run, its
+exact canonical selected step, and the exact WP039 assessment, then preserves
+the current transition decision separately as
+`post_recording_transition_decision` and stops.
+
+The earlier cumulative `assessment` and `transition_decision` remain distinct
+from the post-recording pair. A valid `NO_TRANSITION` is a real decision rather
+than absence, including handler-unavailable evidence over a `NOT_STARTED` step.
+WP040 does not reinterpret execution status, reassess evidence, synthesize a
+progress update, mutate or advance a Run, re-control, retry, recover, or
+continue the Plan.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1210,6 +1227,11 @@ The modules below define the current foundation and future boundaries:
   complete evidence basis on the exact recorded Run while preserving the prior
   assessment separately, without transition policy, mutation, retry, recovery,
   or continuation.
+- `iris.plan_step_execution_transition_decision_composition`: bounded
+  WP039-to-WP021 composition that optionally decides against the exact
+  post-recording assessment and recorded Run while preserving the earlier
+  assessment/decision pair, without reassessment, update synthesis, mutation,
+  re-control, retry, recovery, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
