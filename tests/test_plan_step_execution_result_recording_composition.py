@@ -607,6 +607,38 @@ def test_exact_inputs_are_forwarded_to_wp037_once() -> None:
     ]
 
 
+def test_no_start_still_rejects_malformed_advancement_before_wp026() -> None:
+    plan, run, delegated = canonical_wp037(handling=None)
+    assert delegated.execution_start_result is None
+    assert delegated.advancement_result is not None
+    malformed = unsafe_clone(
+        delegated,
+        advancement_result=unsafe_clone(
+            delegated.advancement_result,
+            updated_run=unsafe_clone(
+                delegated.advancement_result.updated_run,
+                revision=run.revision + 5,
+            ),
+        ),
+    )
+    wp037 = RecordingWP037(real_start_composer(None), forced=malformed)
+    wp026 = RecordingWP026(deterministic_recorder())
+    with pytest.raises(PlanStepExecutionResultRecordingCompositionInvariantError):
+        PlanStepExecutionResultRecordingComposer(
+            start_composer=wp037,
+            result_recorder=wp026,
+        ).compose(
+            plan,
+            run,
+            "a",
+            candidates=(),
+            budget=BUDGET,
+            created_at=CONTEXT_CREATED,
+            availability=CAPABILITY_AVAILABLE,
+        )
+    assert wp026.calls == []
+
+
 def test_handler_unavailable_records_against_exact_pre_activation_run() -> None:
     plan, source_run, delegated = canonical_wp037(handler_available=False)
     start = delegated.execution_start_result
@@ -835,6 +867,7 @@ def test_malformed_wp037_output_fails_before_wp026(mutation: str) -> None:
         "wrong_execution",
         "wrong_observation_source",
         "mutated_progress",
+        "extra_observation",
     ],
 )
 def test_malformed_wp026_output_becomes_wp038_invariant(mutation: str) -> None:
@@ -860,12 +893,23 @@ def test_malformed_wp026_output_becomes_wp038_invariant(mutation: str) -> None:
             canonical,
             observation=unsafe_clone(canonical.observation, source="test"),
         )
-    else:
+    elif mutation == "mutated_progress":
         malformed = unsafe_clone(
             canonical,
             recorded_run=unsafe_clone(
                 canonical.recorded_run,
                 step_progress=tuple(reversed(canonical.recorded_run.step_progress)),
+            ),
+        )
+    else:
+        malformed = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(
+                canonical.recorded_run,
+                observations=(
+                    *canonical.recorded_run.observations,
+                    canonical.observation,
+                ),
             ),
         )
     recorder = RecordingWP026(deterministic_recorder(), forced=malformed)

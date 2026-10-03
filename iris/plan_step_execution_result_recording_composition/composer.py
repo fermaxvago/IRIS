@@ -10,7 +10,7 @@ from iris.execution.models import ExecutionInput
 from iris.orchestrator import HandlerAvailability
 from iris.outcome_assessment import StepOutcomeAssessment
 from iris.plan_run_advancement import PlanRunProgressAdvanceResult
-from iris.plan_runs import PlanRun, StepProgressState, StepProgressUpdate
+from iris.plan_runs import PlanRun, PlanRunError, StepProgressState, StepProgressUpdate
 from iris.plan_step_execution_binding import (
     PlanStepExecutionBinding,
     PlanStepExecutionBindingError,
@@ -209,11 +209,10 @@ class PlanStepExecutionResultRecordingComposer:
             raise invariant(
                 "WP037 request, binding, and start result must share one presence shape"
             )
-        if start is None:
+        if update is None:
             return
 
-        if advancement is None or update is None or request is None or binding is None:
-            raise invariant("WP037 start lineage is incomplete")
+        assert advancement is not None
         pre_activation_run = advancement.updated_run
         if (
             update.run_id != source_run.run_id
@@ -228,11 +227,15 @@ class PlanStepExecutionResultRecordingComposer:
             or pre_activation_run.revision != source_run.revision + 1
         ):
             raise invariant("WP037 advancement does not derive the exact successor Run")
+        if start is None:
+            return
+        if request is None or binding is None:
+            raise invariant("WP037 start lineage is incomplete")
         try:
             validate_plan_step_execution_binding_current(
                 plan, pre_activation_run, binding
             )
-        except (PlanStepExecutionBindingError, ValueError) as exc:
+        except (PlanStepExecutionBindingError, PlanRunError) as exc:
             raise invariant(
                 "WP037 binding is not current for the pre-activation Run"
             ) from exc
@@ -336,6 +339,15 @@ class PlanStepExecutionResultRecordingComposer:
             raise invariant("WP026 observation contradicts the exact execution lineage")
         if recorded_run.step_progress != recording_base.step_progress:
             raise invariant("WP026 recording must preserve StepProgress exactly")
+        if (
+            len(recorded_run.observations) != len(recording_base.observations) + 1
+            or recorded_run.observations[:-1] != recording_base.observations
+            or recorded_run.observations[-1] is not observation
+            or recorded_run.blockers != recording_base.blockers
+        ):
+            raise invariant(
+                "WP026 recording must append only its exact execution observation"
+            )
 
     @staticmethod
     def _result(
