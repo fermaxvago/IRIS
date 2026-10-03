@@ -1038,6 +1038,22 @@ only a current-revision lineage witness: WP036 performs no admission,
 activation, handler resolution, execution, result recording, retry,
 persistence, or continuation, and it stops at the exact WP024 binding.
 
+## Post-binding PlanStep execution-start composition
+
+`iris.plan_step_execution_start_composition` composes WP036 with an explicitly
+configured WP025 `PlanStepExecutionStartCoordinator`. WP036 is invoked exactly
+once. Binding absence stops successfully without calling WP025. Binding
+presence passes the exact successor pre-activation Run, binding, and
+ExecutionRequest to WP025 exactly once and preserves its exact start result.
+
+WP037 adds no runtime configuration or handler policy. WP025 remains the owner
+of revalidation, handler resolution, activation, invocation, and the canonical
+handler-unavailable result. A source Run at revision N may yield a bound
+pre-activation Run at N+1 and, only after successful activation, an ACTIVE Run
+at N+2. Handler `SUCCEEDED`, `FAILED`, and invoked `REJECTED` outcomes all leave
+the selected step ACTIVE; WP037 neither records nor assesses the ExecutionResult
+and never continues the Plan.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
@@ -1145,6 +1161,10 @@ The modules below define the current foundation and future boundaries:
   selected PlanStep at the successor pre-activation revision, without
   admission, activation, handler resolution, execution, retry, persistence, or
   continuation.
+- `iris.plan_step_execution_start_composition`: bounded WP036-to-WP025
+  composition that optionally starts the exact bound selected PlanStep through
+  an explicitly configured runtime, without result recording, assessment,
+  retry, recovery, persistence, or continuation.
 
 The contracts use Python protocols so later implementations can remain modular
 without requiring inheritance from framework-specific base classes.
