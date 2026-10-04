@@ -1183,6 +1183,25 @@ the WorkSubject identity. WP044 stops before Context construction,
 orchestration, request construction, binding, activation, execution, mutation,
 or automatic continuation.
 
+## Post-recording selected-PlanStep Context materialization
+
+`iris.plan_step_execution_context_materialization_composition` invokes WP044
+exactly once and contextualizes only its exact optional
+`post_recording_work_subject`. Step B's inherited `candidates`, `budget`,
+`uncertainties`, and `created_at` remain separate from the explicitly supplied
+post-recording Context inputs for Step C; Context is never inherited implicitly
+between WorkSubjects. The inherited `context_snapshot` and the new
+`post_recording_context_snapshot` remain distinct causal artifacts.
+
+WP045 invokes the canonical WP016 `ContextEngine` once when Step C identity
+exists, regardless of whether handling is `PREPARED`, `HANDLING_UNSPECIFIED`,
+or `INSUFFICIENT_DETAIL`. An empty selection is still a real ContextSnapshot,
+and `RESOLVED`, `PARTIAL`, `AMBIGUOUS`, or `CONFLICTED` status triggers no
+downstream action. ContextSnapshot is not Memory and does not authorize
+execution. Repeated materialization may create distinct snapshot identities.
+WP045 stops before orchestration, request construction, binding, activation,
+execution, mutation, persistence, or automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
