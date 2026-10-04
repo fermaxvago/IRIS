@@ -1226,6 +1226,31 @@ ExecutionRequest and performs no binding, activation, execution, retry,
 persistence, recursive continuation, or autonomous loop. Step C remains
 `NOT_STARTED`.
 
+## Post-recording ExecutionRequest materialization composition
+
+`iris.plan_step_execution_request_materialization_composition` invokes WP046
+exactly once and preserves its complete bounded result. When no exact Step C
+`post_recording_orchestration_decision` exists, WP047 consumes neither an
+execution identity nor a request timestamp and stops with no post-recording
+request. Every real Step C decision instead materializes one canonical WP018
+`ExecutionRequest` from the exact Step C WorkSubject, ContextSnapshot, and
+OrchestrationDecision plus the separately supplied
+`post_recording_execution_input`.
+
+The inherited Step B `execution_input` and Step C post-recording input occupy
+different causal positions and are never substituted for one another. A real
+terminal decision such as `UNSATISFIED` still produces a real terminal request
+with the canonical `None` input; request existence does not mean the request is
+executable or bindable. The inherited `execution_request` remains distinct
+from `post_recording_execution_request`, including a distinct execution
+identity.
+
+WP047 stops at the inert Step C `ExecutionRequest`. It performs no binding,
+approval, admission, activation, execution, availability discovery, retry,
+scheduling, persistence, recursive continuation, or autonomous loop. An
+ExecutionRequest is an explicit handoff artifact, not execution authority, and
+Step C remains `NOT_STARTED`.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
