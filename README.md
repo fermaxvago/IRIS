@@ -1202,6 +1202,30 @@ execution. Repeated materialization may create distinct snapshot identities.
 WP045 stops before orchestration, request construction, binding, activation,
 execution, mutation, persistence, or automatic continuation.
 
+## Post-recording selected-PlanStep orchestration composition
+
+`iris.plan_step_execution_orchestration_composition` invokes WP045 exactly
+once and preserves its exact Step C handling preparation, WorkSubject, and
+ContextSnapshot. Step B's inherited `availability` remains separate from the
+explicitly supplied `post_recording_availability` used for Step C. The two
+Context input sets established by WP045 likewise remain causally distinct.
+
+Context existence alone does not authorize orchestration. Only an exact
+`PREPARED` Step C handling result reaches the canonical WP017 `Orchestrator`;
+`HANDLING_UNSPECIFIED` and `INSUFFICIENT_DETAIL` preserve their real Step C
+WorkSubject and ContextSnapshot while stopping with no post-recording
+orchestration decision. On the prepared branch WP046 supplies the exact Step C
+WorkSubject, exact ContextSnapshot, exact unmodified `HandlingNeed`, and exact
+post-recording availability. Context status does not become new policy, and a
+real WP017 `UNSATISFIED` result remains a real decision rather than absence.
+
+The inherited `orchestration_decision` and the new
+`post_recording_orchestration_decision` occupy distinct causal positions.
+WP046 stops at the inert Step C `OrchestrationDecision`; it constructs no
+ExecutionRequest and performs no binding, activation, execution, retry,
+persistence, recursive continuation, or autonomous loop. Step C remains
+`NOT_STARTED`.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
