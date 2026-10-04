@@ -1144,6 +1144,26 @@ handling preparation, identity or Context materialization, orchestration,
 request construction, binding, activation, execution, retry, persistence, or
 automatic continuation.
 
+## Post-recording PlanStep handling-preparation composition
+
+`iris.plan_step_execution_handling_preparation_composition` invokes WP042
+exactly once and conditionally composes its exact post-recording successor Run
+and fresh `ControlDecision` with the existing WP014
+`PlanStepHandlingPreparer`. No post-recording advancement, or any fresh control
+kind other than `STEP_SELECTED`, stops without invoking WP014 and preserves
+`post_recording_handling_preparation=None`. A fresh `STEP_SELECTED` decision
+invokes WP014 exactly once with the exact Plan, exact successor Run, and exact
+fresh control. No `StepHandlingSpecification` is resolved or supplied.
+
+The exact WP014 result is preserved for all canonical statuses, including
+`PREPARED`, `HANDLING_UNSPECIFIED`, and `INSUFFICIENT_DETAIL`. The inherited
+`handling_preparation` for the previously selected and executed Step B remains
+distinct from `post_recording_handling_preparation` for a newly selected Step
+C. WP043 stops at that inert preparation result. It performs no WorkSubject or
+Context materialization, orchestration, request construction, binding,
+activation, execution, retry, recovery, persistence, re-control, or automatic
+continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
