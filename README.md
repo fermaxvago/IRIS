@@ -1164,6 +1164,25 @@ Context materialization, orchestration, request construction, binding,
 activation, execution, retry, recovery, persistence, re-control, or automatic
 continuation.
 
+## Post-recording selected-PlanStep WorkSubject materialization
+
+`iris.plan_step_execution_work_subject_materialization_composition` invokes
+WP043 exactly once and, only for its exact fresh post-recording
+`STEP_SELECTED`, invokes the canonical WP015 `work_subject_from_plan_step`
+adapter exactly once with the exact Plan, successor Run, and freshly selected
+Step identifier. The result preserves the earlier `work_subject` for executed
+Step B and separately appends `post_recording_work_subject` for selected Step
+C. No `WorkOrigin`, subject ID, revision, or identity hint is supplied by
+WP044.
+
+This materializes identity only. `PREPARED`, `HANDLING_UNSPECIFIED`, and
+`INSUFFICIENT_DETAIL` handling outcomes are all compatible with the same stable
+selected-work identity: a WorkSubject neither proves handling readiness nor
+authorizes execution. PlanRun revision remains currentness evidence outside
+the WorkSubject identity. WP044 stops before Context construction,
+orchestration, request construction, binding, activation, execution, mutation,
+or automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
