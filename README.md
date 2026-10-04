@@ -1107,6 +1107,24 @@ WP040 does not reinterpret execution status, reassess evidence, synthesize a
 progress update, mutate or advance a Run, re-control, retry, recover, or
 continue the Plan.
 
+## Post-decision PlanStep progress-update composition
+
+`iris.plan_step_execution_progress_update_composition` composes WP040 with the
+existing WP022 `StepProgressUpdateSynthesizer`. WP040 is invoked exactly once.
+Decision absence and an explicit `NO_TRANSITION` remain distinct successful
+outcomes, but both stop without calling WP022 and return
+`post_recording_progress_update=None`. A `TRANSITION` decision invokes WP022
+exactly once with the supplied Plan and the exact recorded Run, post-recording
+assessment, and post-recording decision preserved by WP040.
+
+The exact inert `StepProgressUpdate` returned by WP022 is preserved separately
+as `post_recording_progress_update`. The earlier cumulative assessment,
+decision, and progress update may describe processed Step A while the new
+post-recording artifacts describe selected and executed Step B; WP041 keeps
+those lineages distinct. It does not reassess evidence, recompute transition
+policy, apply the update, invoke a reducer, mutate or advance a Run, re-control,
+retry, recover, persist, or continue the Plan.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
