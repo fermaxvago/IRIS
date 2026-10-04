@@ -1,10 +1,11 @@
 # Latest Architecture Continuity Checkpoint
 
-- Latest checkpoint: [ACC-WP035](ACC-WP035.md)
+- Latest checkpoint: [ACC-WP040](ACC-WP040.md)
 - Checkpoint date: 2026-10-03
 - Represented canonical `main` SHA:
-  `006f908677466231d4fba77954aac683f840847f`
-- Next scheduled checkpoint: not established by ACC-WP035
+  `ce5d5a3ac8cda37bf039f546380f10ef04509f46`
+- Previous checkpoint: [ACC-WP035](ACC-WP035.md)
+- Next scheduled checkpoint: not established by ACC-WP040
 
 Architecture Continuity Checkpoints are immutable historical records. Later
 repository state may supersede statements labeled **CURRENT**, while the
