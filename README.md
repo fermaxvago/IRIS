@@ -1125,6 +1125,25 @@ those lineages distinct. It does not reassess evidence, recompute transition
 policy, apply the update, invoke a reducer, mutate or advance a Run, re-control,
 retry, recover, persist, or continue the Plan.
 
+## Post-recording PlanStep progress-advancement composition
+
+`iris.plan_step_execution_progress_advancement_composition` composes WP041
+with the existing WP023 `PlanRunProgressAdvancer`. WP041 is invoked exactly
+once. When no post-recording progress update exists, WP023 is not called and
+`post_recording_advancement_result` is `None`. When the exact inert update
+exists, WP042 invokes WP023 exactly once against the exact
+`execution_recording_result.recorded_run`, never the original source Run of the
+larger operation.
+
+The exact successor Run and fresh `ControlDecision` returned by WP023 are
+preserved inside `post_recording_advancement_result`. Earlier artifacts may
+describe Step A, post-recording artifacts and advancement may describe Step B,
+and fresh control may select Step C. WP042 preserves those distinct lineages
+and stops at the inert fresh decision. It performs no second control pass,
+handling preparation, identity or Context materialization, orchestration,
+request construction, binding, activation, execution, retry, persistence, or
+automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
