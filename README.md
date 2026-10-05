@@ -1251,6 +1251,37 @@ scheduling, persistence, recursive continuation, or autonomous loop. An
 ExecutionRequest is an explicit handoff artifact, not execution authority, and
 Step C remains `NOT_STARTED`.
 
+## Post-recording PlanStep execution binding composition
+
+`iris.plan_step_execution_binding_post_recording_composition` invokes WP047
+once with the complete, separate Step B and Step C operands. It validates the
+delegated lineage before invoking the canonical WP024 `PlanStepExecutionBinder`.
+No Step C request means no binder call and no post-recording binding. Every
+canonical, validated Step C request reaches WP024 exactly once, using the exact
+Plan, post-recording successor Run, fresh ControlDecision, handling preparation,
+and ExecutionRequest. WP024 owns bindability; WP048 adds no target policy,
+binding identifier, or binding timestamp.
+
+A reachable `UNSATISFIED` Step C request reaches WP024 and its canonical
+`NonExecutableExecutionRequestError` propagates unchanged. It is never
+converted into successful absence. WP018 can represent `CLARIFY` and WP024
+rejects such requests in its own domain, but the current blocker-free prepared
+Step C path through WP046/WP047 cannot produce canonical `CLARIFY` lineage.
+An adversarial delegated result claiming that lineage is rejected before the
+binder. Domain-valid artifacts are not necessarily reachable through every
+composition path (WP048-C1).
+
+Successful results preserve every WP047 artifact and append the exact compact
+`post_recording_execution_binding` witness. The inherited Step B
+`execution_binding` remains distinct. Within a successful result, the Step C
+request and binding either both exist or are both absent; a non-bindable request
+exits through a canonical error. WP048 stops at pre-activation binding, with
+Step C still `NOT_STARTED`. Binding provides no execution authorization,
+admission, activation, dispatch, execution, or continuation. No Run mutation,
+retry, scheduling, or external I/O is added. Delegation counts are local to one
+invocation; repeated WP047 calls may create fresh request identities, so WP048
+claims no global idempotency, deduplication, or exactly-once processing.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
