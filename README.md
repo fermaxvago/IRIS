@@ -1317,6 +1317,41 @@ ExecutionResult is not recorded, assessed, or used to select further work.
 WP049 adds no recording, terminal progress mutation, scheduling, recursive
 orchestration, or automatic continuation.
 
+## Post-recording PlanStep execution-result recording composition
+
+`iris.plan_step_execution_result_recording_post_recording_composition` invokes
+WP049 exactly once and records its optional Step C start result through WP026.
+No start result means no recording call and no new recording artifact. A real
+start result reaches `PlanStepExecutionResultRecorder.record` exactly once,
+using the exact ACTIVE Run when activation occurred, or the exact post-recording
+advancement successor Run for canonical handler unavailability.
+
+The result preserves all inherited artifacts and adds only
+`post_recording_execution_recording_result`, separately from the earlier Step B
+`execution_recording_result`. WP026 records a canonical execution PlanObservation,
+not a raw ExecutionResult stored directly in PlanRun. It derives one successor
+Run revision and preserves StepProgress and blockers. Handler unavailability is
+still a recordable execution fact: Step C remains `NOT_STARTED`. Activated
+SUCCEEDED, FAILED, and REJECTED outcomes are evidence only; Step C remains `ACTIVE`.
+
+Under WP050-C1, observations retain canonical `observation_id` ordering. Every
+exact prior observation and the exact new WP026 observation must be present,
+with unique identities and cardinality increased by one. The new observation
+may sort before, between, or after existing observations. WP050 does not adopt
+WP038's known positional append defect; WP038 remains unchanged.
+
+WP050 validates returned WP049 lineage before recording, not before execution:
+handler effects may already have occurred. Upstream invocation failures preserve
+committed ACTIVE lineage and do not cause recording of fabricated facts. WP026
+errors propagate without rerunning WP049, retrying handlers, rollback, or
+compensation. Counts are invocation-local, not global exactly-once, durable
+deduplication, transactionality, or crash recovery.
+
+The boundary is `PlanStepExecutionResultRecordingResult C -> STOP`.
+Execution result recorded does not mean execution result assessed. No assessment,
+transition policy, terminal progress mutation, fresh control, or successor-work
+continuation is introduced.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
