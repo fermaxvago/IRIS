@@ -1282,6 +1282,41 @@ retry, scheduling, or external I/O is added. Delegation counts are local to one
 invocation; repeated WP047 calls may create fresh request identities, so WP048
 claims no global idempotency, deduplication, or exactly-once processing.
 
+## Post-recording PlanStep execution-start composition
+
+`iris.plan_step_execution_start_post_recording_composition` delegates once to
+WP048 and validates its complete cumulative Step C lineage before invoking
+WP025. No Step C binding means no start call and no post-recording start result.
+A validated binding reaches the explicitly injected
+`PlanStepExecutionStartCoordinator` exactly once with the exact Plan,
+`post_recording_advancement_result.updated_run`, Step C binding, and Step C
+request. Step B and Step C Context, availability, execution inputs, and artifacts
+remain separate. WP049 adds no clock, identity factory, registry, admission
+policy, or activation authority.
+
+WP025 may cross a real handler side-effect boundary. Orchestration-time
+availability does not guarantee execution-time handler presence. An unavailable
+handler produces a real start result containing `REJECTED` / `handler_unavailable`,
+with no active Run or activation update; Step C remains `NOT_STARTED`. If
+activation succeeds, the exact returned Run is one revision beyond the Step C
+pre-activation Run and Step C is `ACTIVE`, even when the handler outcome is
+`SUCCEEDED`, `FAILED`, or `REJECTED`. `ExecutionResult.started_at` is not the
+activation timestamp.
+
+The exact `post_recording_execution_start_result` is preserved separately from
+the inherited Step B `execution_start_result`. For successful composition,
+request, binding, and start-result presence agree; start-result presence does
+not imply activation. Canonical pre-activation failures propagate unchanged.
+After activation, `PlanStepExecutionInvocationError` propagates unchanged with
+its committed local ACTIVE Run, activation update ID, and execution ID. WP049
+does not roll back, compensate, retry, or hide that lineage. This is not a claim
+of durable persistence, transactionality, or globally exactly-once side effects.
+
+The frontier ends at `PlanStepExecutionStartResult C -> STOP`. Its embedded
+ExecutionResult is not recorded, assessed, or used to select further work.
+WP049 adds no recording, terminal progress mutation, scheduling, recursive
+orchestration, or automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
