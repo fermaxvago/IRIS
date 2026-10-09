@@ -1377,6 +1377,25 @@ The boundary is `StepOutcomeAssessment C -> STOP`. WP051 creates no Run
 revision and introduces no transition decision, progress mutation, fresh
 control, Step D, retry, recovery, recursion, or automatic continuation.
 
+## Post-recording Step C transition-decision composition
+
+`iris.plan_step_execution_transition_decision_post_recording_composition`
+invokes WP051 exactly once and, only when its exact Step C assessment exists,
+invokes WP021 exactly once with the supplied Plan, the exact Step C recorded
+Run, its canonical PlanStep, and that exact complete-evidence assessment. An
+absent assessment produces no decision; a valid `NO_TRANSITION` remains a real
+present decision.
+
+The composition preserves WP051's complete Step-scoped evidence basis,
+canonical observation ordering, lazy input semantics, and exact artifact
+lineage. WP021 remains the sole transition-policy authority, including
+currentness, conservative abstentions, and temporal applicability. Execution
+status is not interpreted as StepProgress, and the decision is not applied.
+
+The boundary is `StepProgressTransitionDecision C -> STOP`. WP052 creates no
+progress update or Run revision and introduces no mutation, advancement, fresh
+control, Step D, retry, recovery, recursion, or automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
