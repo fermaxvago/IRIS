@@ -1419,6 +1419,16 @@ and update, preserving its successor Run and current control decision as
 step, persist the successor, or continue execution. Its boundary is
 `PlanRunProgressAdvanceResult C -> STOP`.
 
+## Post-Step-C handling-preparation composition
+
+`iris.plan_step_execution_handling_preparation_post_recording_composition`
+invokes WP054 once. It calls canonical WP014 only when the exact fresh control
+decision selects a successor Step, passing the exact successor Run and decision.
+The optional `post_recording_execution_handling_preparation` preserves every
+valid WP014 status. WP055 does not materialize a WorkSubject, construct context,
+bind or execute work, persist a Run, or continue the workflow. Its boundary is
+`StepHandlingPreparationResult D -> STOP`.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
