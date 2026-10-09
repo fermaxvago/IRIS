@@ -1396,6 +1396,19 @@ The boundary is `StepProgressTransitionDecision C -> STOP`. WP052 creates no
 progress update or Run revision and introduces no mutation, advancement, fresh
 control, Step D, retry, recovery, recursion, or automatic continuation.
 
+## Post-recording Step C progress-update composition
+
+`iris.plan_step_execution_progress_update_post_recording_composition` invokes
+WP052 exactly once. If its exact Step C transition decision is absent or says
+`NO_TRANSITION`, the Step C update is absent. Only `TRANSITION` delegates once
+to canonical WP022 with the exact recorded Run, assessment, and decision.
+
+The resulting `post_recording_execution_progress_update` preserves the full
+Step C evidence basis, decision provenance, revision, and timestamp contract.
+It is an inert update request. WP053 does not apply it, create another Run
+revision, select another step, or continue execution. Its boundary is
+`StepProgressUpdate C -> STOP`.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
