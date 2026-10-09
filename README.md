@@ -1409,6 +1409,16 @@ It is an inert update request. WP053 does not apply it, create another Run
 revision, select another step, or continue execution. Its boundary is
 `StepProgressUpdate C -> STOP`.
 
+## Post-recording Step C progress advancement composition
+
+`iris.plan_step_execution_progress_advancement_post_recording_composition`
+invokes WP053 once. An absent Step C update produces no advancement. A present
+update delegates once to canonical WP023 using the exact Step C recorded Run
+and update, preserving its successor Run and current control decision as
+`post_recording_execution_advancement_result`. WP054 does not act on a selected
+step, persist the successor, or continue execution. Its boundary is
+`PlanRunProgressAdvanceResult C -> STOP`.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
