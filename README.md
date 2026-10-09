@@ -1352,6 +1352,31 @@ Execution result recorded does not mean execution result assessed. No assessment
 transition policy, terminal progress mutation, fresh control, or successor-work
 continuation is introduced.
 
+## Post-recording Step C complete-evidence assessment composition
+
+`iris.plan_step_execution_evidence_assessment_post_recording_composition`
+invokes WP050 exactly once and, only when its exact Step C recording exists,
+invokes WP027 exactly once with the exact recorded Run and recorded Step ID. No
+Step C recording means no assessment call and an absent
+`post_recording_execution_assessment`.
+
+The assessment covers every canonical observation scoped to Step C in the exact
+recorded Run revision. It is not derived directly from the raw ExecutionResult
+or only from the newly recorded execution observation. Evidence IDs preserve
+canonical PlanRun `observation_id` ordering, so the new execution observation may
+appear before, between, or after prior Step C evidence. Other-Step and Run-level
+observations are excluded.
+
+Handler-unavailable evidence is still assessed even though Step C remains
+`NOT_STARTED`; activated SUCCEEDED, FAILED, and REJECTED execution facts are
+assessed while Step C remains `ACTIVE`. Execution status is not mapped to an
+outcome status, and outcome status is not mapped to StepProgress. The canonical
+WP027 evaluator owns interpretation of the complete evidence basis.
+
+The boundary is `StepOutcomeAssessment C -> STOP`. WP051 creates no Run
+revision and introduces no transition decision, progress mutation, fresh
+control, Step D, retry, recovery, recursion, or automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
