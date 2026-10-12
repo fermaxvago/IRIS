@@ -1440,6 +1440,17 @@ regardless of handling-preparation status. WP056 stops before Context,
 orchestration, binding or execution; identity alone does not establish Run
 currentness or execution permission.
 
+## Post-Step-C successor Context materialization
+
+`iris.plan_step_execution_context_materialization_post_recording_composition`
+invokes WP056 once and builds Context through canonical WP016 only when WP056
+identifies a selected successor WorkSubject. It uses explicit successor-specific
+Context inputs and requires snapshot time not to precede either Step C execution
+completion or the successor Run update. The optional
+`post_recording_execution_context_snapshot` preserves the exact WorkSubject
+owner and all inherited artifacts. WP057 stops before orchestration, execution,
+persistence, or automatic continuation; Context status is not permission to act.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
