@@ -1429,6 +1429,17 @@ valid WP014 status. WP055 does not materialize a WorkSubject, construct context,
 bind or execute work, persist a Run, or continue the workflow. Its boundary is
 `StepHandlingPreparationResult D -> STOP`.
 
+## Post-Step-C successor WorkSubject materialization
+
+`iris.plan_step_execution_work_subject_materialization_post_recording_composition`
+invokes WP055 once. A missing advancement or a fresh control decision other
+than `STEP_SELECTED` produces no new WorkSubject. A selected successor delegates
+once to canonical WP015 with the exact Plan, successor Run and selected Step ID.
+The optional `post_recording_execution_work_subject` identifies that Step
+regardless of handling-preparation status. WP056 stops before Context,
+orchestration, binding or execution; identity alone does not establish Run
+currentness or execution permission.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
