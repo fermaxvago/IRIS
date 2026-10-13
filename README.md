@@ -1462,6 +1462,17 @@ preserves WP017's result, including a real `UNSATISFIED` decision when the
 handler is unavailable. WP058 stops before execution requests, binding,
 activation, Run mutation, persistence or automatic continuation.
 
+## Post-Step-C successor execution request materialization
+
+`iris.plan_step_execution_request_materialization_post_recording_composition`
+invokes WP058 once and preserves its exact cumulative artifacts. WP059 creates
+one canonical WP018 `ExecutionRequest` only for an operational successor
+orchestration target, using the inherited WorkSubject, ContextSnapshot and
+decision with explicit successor execution input. Absent, non-prepared and
+terminal (`CLARIFY` or `UNSATISFIED`) branches produce no request. WP059 stops
+before binding, handler execution, PlanRun mutation, persistence or automatic
+continuation; request materialization is not execution authorization.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
