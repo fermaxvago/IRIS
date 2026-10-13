@@ -1451,6 +1451,17 @@ completion or the successor Run update. The optional
 owner and all inherited artifacts. WP057 stops before orchestration, execution,
 persistence, or automatic continuation; Context status is not permission to act.
 
+## Post-Step-C successor orchestration decision
+
+`iris.plan_step_execution_orchestration_post_recording_composition` invokes
+WP057 once. An absent successor or non-`PREPARED` handling produces no new
+decision. For an exact `PREPARED` successor it passes the inherited WorkSubject,
+ContextSnapshot and HandlingNeed with caller-declared availability to canonical
+WP017 exactly once. The optional `post_recording_execution_orchestration_decision`
+preserves WP017's result, including a real `UNSATISFIED` decision when the
+handler is unavailable. WP058 stops before execution requests, binding,
+activation, Run mutation, persistence or automatic continuation.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
