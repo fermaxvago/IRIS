@@ -1473,6 +1473,17 @@ terminal (`CLARIFY` or `UNSATISFIED`) branches produce no request. WP059 stops
 before binding, handler execution, PlanRun mutation, persistence or automatic
 continuation; request materialization is not execution authorization.
 
+## Post-Step-C successor execution binding
+
+`iris.plan_step_execution_successor_binding_post_recording_composition`
+invokes WP059 once. An absent successor request produces no binding; a present
+request delegates exactly once to canonical WP024 using the exact selected
+successor Run, control decision and handling preparation. The optional
+`post_recording_execution_successor_binding` witnesses the request's complete
+nine-field lineage at the current Run revision. WP060 stops before activation,
+handler execution, PlanRun mutation, persistence or automatic continuation. A
+binding is not execution authorization.
+
 In the current vocabulary, a **Tool** is a directly invocable technical
 capability. A **Skill** is a higher-level procedure that may compose tools in a
 future subsystem. An **Action** is a concrete operation against the environment
