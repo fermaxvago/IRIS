@@ -172,6 +172,12 @@ connection.
 pytest
 ```
 
+The [repository quality workflow](.github/workflows/ci.yml) checks pull requests
+and pushes to `main` on Ubuntu 24.04 with Python 3.11. It runs the default
+pytest suite, Ruff lint and formatting, strict mypy, and wheel/source builds.
+Its read-only results support human review; they do not authorize a merge or
+validate physical Windows or Ollama operation.
+
 Normal tests mock HTTP and never require, start, or download Ollama models. A
 real integration test is explicitly opt-in:
 
