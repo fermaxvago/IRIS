@@ -95,8 +95,7 @@ def get_system_info() -> SystemInfo:
     return {
         "device_name": _read_metric(socket.gethostname) or "No disponible",
         "operating_system": operating_system,
-        "operating_system_version": _read_metric(platform.version)
-        or "No disponible",
+        "operating_system_version": _read_metric(platform.version) or "No disponible",
         "python_version": _read_metric(platform.python_version) or "No disponible",
         "cpu_percent": cpu_percent,
         "ram_total_gb": _gibibytes(memory.total) if memory else None,
@@ -125,19 +124,15 @@ def _format_usage(
 def format_system_info(info: SystemInfo) -> str:
     """Render a system snapshot for the current Spanish terminal interface."""
 
-    cpu = (
-        "No disponible"
-        if info["cpu_percent"] is None
-        else f'{info["cpu_percent"]}%'
-    )
+    cpu = "No disponible" if info["cpu_percent"] is None else f"{info['cpu_percent']}%"
     battery = "No disponible"
 
     if info["battery_percent"] is not None:
         if info["plugged_in"] is None:
-            battery = f'{info["battery_percent"]}%'
+            battery = f"{info['battery_percent']}%"
         else:
             charging = "conectada" if info["plugged_in"] else "en batería"
-            battery = f'{info["battery_percent"]}% ({charging})'
+            battery = f"{info['battery_percent']}% ({charging})"
 
     memory = _format_usage(
         info["ram_used_gb"], info["ram_total_gb"], info["ram_percent"]
@@ -147,12 +142,12 @@ def format_system_info(info: SystemInfo) -> str:
     )
 
     return (
-        f'Dispositivo: {info["device_name"]}\n'
-        f'Sistema: {info["operating_system"]} {info["operating_system_version"]}\n'
-        f'Python: {info["python_version"]}\n'
+        f"Dispositivo: {info['device_name']}\n"
+        f"Sistema: {info['operating_system']} {info['operating_system_version']}\n"
+        f"Python: {info['python_version']}\n"
         f"CPU: {cpu}\n"
         f"RAM: {memory}\n"
-        f'Disco ({info["disk_path"]}): {disk}\n'
+        f"Disco ({info['disk_path']}): {disk}\n"
         f"Batería: {battery}\n"
-        f'Hora: {info["timestamp"]}'
+        f"Hora: {info['timestamp']}"
     )
