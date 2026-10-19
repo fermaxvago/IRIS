@@ -339,14 +339,28 @@ class PlanStepExecutionResultRecordingComposer:
             raise invariant("WP026 observation contradicts the exact execution lineage")
         if recorded_run.step_progress != recording_base.step_progress:
             raise invariant("WP026 recording must preserve StepProgress exactly")
+        expected_observations = tuple(
+            sorted(
+                (*recording_base.observations, observation),
+                key=lambda item: item.observation_id,
+            )
+        )
         if (
-            len(recorded_run.observations) != len(recording_base.observations) + 1
-            or recorded_run.observations[:-1] != recording_base.observations
-            or recorded_run.observations[-1] is not observation
+            any(
+                previous.observation_id == observation.observation_id
+                for previous in recording_base.observations
+            )
+            or len(recorded_run.observations) != len(recording_base.observations) + 1
+            or any(
+                actual is not expected
+                for actual, expected in zip(
+                    recorded_run.observations, expected_observations, strict=True
+                )
+            )
             or recorded_run.blockers != recording_base.blockers
         ):
             raise invariant(
-                "WP026 recording must append only its exact execution observation"
+                "WP026 recording must preserve exact observations in canonical order"
             )
 
     @staticmethod

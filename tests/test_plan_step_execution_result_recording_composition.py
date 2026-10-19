@@ -37,6 +37,7 @@ from iris.outcome_assessment import (
 from iris.plan_handling import PlanStepHandlingPreparer
 from iris.plan_run_advancement import PlanRunProgressAdvancer
 from iris.plan_runs import (
+    DuplicateRunIdentityError,
     PlanObservation,
     PlanRun,
     PlanRunFactory,
@@ -188,31 +189,34 @@ def transition(
 
 def selected_scenario(
     handling: HandlingKind | None = HandlingKind.CAPABILITY,
+    *,
+    prior_observation_ids: tuple[str, ...] = ("evidence-a",),
 ) -> tuple[Plan, PlanRun]:
     plan = make_plan(step("a"), step("b", depends_on=("a",), handling=handling))
     run = transition(plan, new_run(plan), "a", StepProgressState.ACTIVE)
-    observation = PlanObservation(
-        observation_id="evidence-a",
-        run_id=run.run_id,
-        step_id="a",
-        source="test",
-        source_reference="source-evidence-a",
-        observed_at=run.updated_at + timedelta(seconds=1),
-        kind="verification",
-        data={"verified": True},
-    )
-    run = PlanRunReducer().apply(
-        plan,
-        run,
-        RecordObservationUpdate(
-            update_id="record-evidence-a",
+    for observation_id in prior_observation_ids:
+        observation = PlanObservation(
+            observation_id=observation_id,
             run_id=run.run_id,
-            expected_revision=run.revision,
-            updated_at=observation.observed_at,
-            provenance=PROVENANCE,
-            observation=observation,
-        ),
-    )
+            step_id="a",
+            source="test",
+            source_reference=f"source-{observation_id}",
+            observed_at=run.updated_at + timedelta(seconds=1),
+            kind="verification",
+            data={"verified": True},
+        )
+        run = PlanRunReducer().apply(
+            plan,
+            run,
+            RecordObservationUpdate(
+                update_id=f"record-{observation_id}",
+                run_id=run.run_id,
+                expected_revision=run.revision,
+                updated_at=observation.observed_at,
+                provenance=PROVENANCE,
+                observation=observation,
+            ),
+        )
     return plan, run
 
 
@@ -312,8 +316,9 @@ def canonical_wp037(
     outcome: HandlerOutcome | None = None,
     handler_available: bool = True,
     assessment_status: StepOutcomeStatus = StepOutcomeStatus.SATISFIED,
+    prior_observation_ids: tuple[str, ...] = ("evidence-a",),
 ) -> tuple[Plan, PlanRun, PlanStepExecutionStartCompositionResult]:
-    plan, run = selected_scenario(handling)
+    plan, run = selected_scenario(handling, prior_observation_ids=prior_observation_ids)
     handler = None
     if handler_available:
         handler = CapabilityHandler(
@@ -337,11 +342,13 @@ def canonical_wp037(
     return plan, run, result
 
 
-def deterministic_recorder() -> PlanStepExecutionResultRecorder:
+def deterministic_recorder(
+    observation_id: str = "execution-observation-1",
+) -> PlanStepExecutionResultRecorder:
     return PlanStepExecutionResultRecorder(
         observation_adapter=ExecutionObservationAdapter(
             clock=lambda: OBSERVED,
-            observation_id_factory=lambda: "execution-observation-1",
+            observation_id_factory=lambda: observation_id,
         ),
         update_id_factory=lambda: "record-execution-update-1",
     )
@@ -658,6 +665,215 @@ def test_handler_unavailable_records_against_exact_pre_activation_run() -> None:
     assert recording.observation.data["status"] == ExecutionStatus.REJECTED.value
     assert source_run.revision + 1 == pre_activation.revision
     assert recording.recorded_run.revision == source_run.revision + 2
+
+
+@pytest.mark.parametrize(
+    ("prior_ids", "new_id", "expected_ids"),
+    [
+        (("z-old",), "a-new", ("a-new", "z-old")),
+        (("a-old", "z-old"), "m-new", ("a-old", "m-new", "z-old")),
+        (("a-old",), "z-new", ("a-old", "z-new")),
+    ],
+)
+def test_real_wp026_recording_preserves_canonical_observation_order(
+    prior_ids: tuple[str, ...], new_id: str, expected_ids: tuple[str, ...]
+) -> None:
+    plan, source_run, delegated = canonical_wp037(prior_observation_ids=prior_ids)
+    start = delegated.execution_start_result
+    assert start is not None and start.active_run is not None
+    base = start.active_run
+    assert tuple(item.observation_id for item in base.observations) == tuple(
+        sorted(prior_ids)
+    )
+    recorder = RecordingWP026(deterministic_recorder(new_id))
+    result, _, _ = compose_from(plan, source_run, delegated, recorder=recorder)
+    assert recorder.calls == [(plan, base, start)]
+    recording = result.execution_recording_result
+    assert recording is not None
+    recorded = recording.recorded_run
+    assert tuple(item.observation_id for item in recorded.observations) == expected_ids
+    assert recorded.revision == base.revision + 1
+    assert recorded.plan_id == base.plan_id
+    assert recorded.run_id == base.run_id
+    assert recorded.goal_id == base.goal_id
+    assert recorded.step_progress == base.step_progress
+    assert recorded.blockers == base.blockers
+    for old in base.observations:
+        assert (
+            next(
+                item
+                for item in recorded.observations
+                if item.observation_id == old.observation_id
+            )
+            is old
+        )
+    assert (
+        next(item for item in recorded.observations if item.observation_id == new_id)
+        is recording.observation
+    )
+
+
+def test_first_observation_uses_real_wp026_and_wp038_validation() -> None:
+    plan, _, delegated = canonical_wp037(handler_available=False)
+    start = delegated.execution_start_result
+    assert start is not None and start.active_run is None
+    empty_run = new_run(plan)
+    first_start = unsafe_clone(start, source_revision=empty_run.revision)
+    recording = deterministic_recorder("first-new").record(plan, empty_run, first_start)
+    PlanStepExecutionResultRecordingComposer._validate_recording_result(
+        plan, empty_run, first_start, recording
+    )
+    assert recording.recorded_run.observations == (recording.observation,)
+    assert recording.recorded_run.revision == empty_run.revision + 1
+    assert recording.recorded_run.step_progress == empty_run.step_progress
+    assert recording.recorded_run.blockers == empty_run.blockers
+
+
+def test_duplicate_observation_id_is_rejected_by_real_wp026() -> None:
+    plan, _, delegated = canonical_wp037()
+    start = delegated.execution_start_result
+    assert start is not None and start.active_run is not None
+    old_id = start.active_run.observations[0].observation_id
+    with pytest.raises(DuplicateRunIdentityError):
+        deterministic_recorder(old_id).record(plan, start.active_run, start)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "duplicate_new_id",
+        "missing_new",
+        "removed_old",
+        "replaced_old",
+        "modified_old",
+        "foreign_observation",
+        "extra_observation",
+        "replaced_new",
+        "noncanonical_order",
+        "foreign_plan",
+        "foreign_run",
+        "foreign_goal",
+        "wrong_revision",
+        "wrong_step",
+        "wrong_execution",
+        "wrong_source",
+        "wrong_source_reference",
+        "wrong_kind",
+        "altered_progress",
+        "altered_blockers",
+    ],
+)
+def test_wp038_rejects_forged_recording_without_losing_evidence_guards(
+    mutation: str,
+) -> None:
+    plan, _, delegated = canonical_wp037()
+    start = delegated.execution_start_result
+    assert start is not None and start.active_run is not None
+    base = start.active_run
+    canonical = deterministic_recorder("a-new").record(plan, base, start)
+    old = base.observations[0]
+    new = canonical.observation
+    recorded = canonical.recorded_run
+    forged = canonical
+    if mutation == "duplicate_new_id":
+        duplicate = unsafe_clone(new, observation_id=old.observation_id)
+        forged = unsafe_clone(
+            canonical,
+            observation_id=old.observation_id,
+            observation=duplicate,
+            recorded_run=unsafe_clone(recorded, observations=(old, duplicate)),
+        )
+    elif mutation == "missing_new":
+        forged = unsafe_clone(
+            canonical, recorded_run=unsafe_clone(recorded, observations=(old,))
+        )
+    elif mutation == "removed_old":
+        forged = unsafe_clone(
+            canonical, recorded_run=unsafe_clone(recorded, observations=(new,))
+        )
+    elif mutation == "replaced_old":
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(recorded, observations=(new, unsafe_clone(old))),
+        )
+    elif mutation == "modified_old":
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(
+                recorded,
+                observations=(new, unsafe_clone(old, data={"forged": True})),
+            ),
+        )
+    elif mutation == "foreign_observation":
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(
+                recorded,
+                observations=(new, unsafe_clone(old, observation_id="foreign")),
+            ),
+        )
+    elif mutation == "extra_observation":
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(
+                recorded,
+                observations=(new, old, unsafe_clone(old, observation_id="z-extra")),
+            ),
+        )
+    elif mutation == "replaced_new":
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(recorded, observations=(unsafe_clone(new), old)),
+        )
+    elif mutation == "noncanonical_order":
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(recorded, observations=(old, new)),
+        )
+    elif mutation in {"foreign_plan", "foreign_run", "foreign_goal", "wrong_revision"}:
+        field_name = {
+            "foreign_plan": "plan_id",
+            "foreign_run": "run_id",
+            "foreign_goal": "goal_id",
+            "wrong_revision": "revision",
+        }[mutation]
+        value: object = (
+            recorded.revision + 1 if mutation == "wrong_revision" else "foreign"
+        )
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(recorded, **{field_name: value}),
+        )
+    elif mutation == "wrong_step":
+        forged = unsafe_clone(canonical, step_id="foreign")
+    elif mutation == "wrong_execution":
+        forged = unsafe_clone(canonical, execution_id="foreign")
+    elif mutation in {"wrong_source", "wrong_source_reference", "wrong_kind"}:
+        field_name = {
+            "wrong_source": "source",
+            "wrong_source_reference": "source_reference",
+            "wrong_kind": "kind",
+        }[mutation]
+        forged = unsafe_clone(
+            canonical, observation=unsafe_clone(new, **{field_name: "foreign"})
+        )
+    elif mutation == "altered_progress":
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(
+                recorded, step_progress=tuple(reversed(recorded.step_progress))
+            ),
+        )
+    else:
+        forged = unsafe_clone(
+            canonical,
+            recorded_run=unsafe_clone(recorded, blockers=(object(),)),
+        )
+
+    with pytest.raises(PlanStepExecutionResultRecordingCompositionInvariantError):
+        PlanStepExecutionResultRecordingComposer._validate_recording_result(
+            plan, base, start, forged
+        )
 
 
 @pytest.mark.parametrize(
