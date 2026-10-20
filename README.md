@@ -136,7 +136,16 @@ To enter local text chat with an already installed Ollama model, run:
 ```powershell
 python -m iris chat --model qwen3:8b
 # or: iris chat --model qwen3:8b
+python -m iris chat --select
 ```
+
+`--select` discovers models from the explicitly configured loopback Ollama
+provider, requires local conversational capability, and shows the deterministic
+router's recommendation for confirmation. It rechecks the exact model before
+creating a temporary session. Discovery failures are not treated as an empty
+inventory; cancellation creates no chat session. Selection does not benchmark
+models, start inference, authorize tools, or choose a fallback. `--model` and
+`--select` are mutually exclusive.
 
 The chat uses the loopback Ollama endpoint and sends no tool definitions.
 `/reiniciar` clears the temporary transcript; `/salir` returns to the legacy

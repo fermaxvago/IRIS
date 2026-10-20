@@ -16,6 +16,16 @@ from iris.intelligence.conversation import (
     ConversationRole,
     ConversationSession,
 )
+from iris.intelligence.conversation_routing import (
+    ConversationBindingError,
+    ConversationDiscoveryContractError,
+    ConversationDiscoveryError,
+    ConversationRouteBinder,
+    ConversationRouteContractError,
+    ConversationRouteProposal,
+    local_conversation_need,
+    resource_from_descriptor,
+)
 from iris.intelligence.models import (
     IntelligenceRequest,
     IntelligenceResult,
@@ -63,9 +73,15 @@ __all__ = [
     "CandidateResolution",
     "CandidateResolver",
     "ConversationBusyError",
+    "ConversationBindingError",
+    "ConversationDiscoveryContractError",
+    "ConversationDiscoveryError",
     "ConversationLimitError",
     "ConversationMessage",
     "ConversationRequest",
+    "ConversationRouteBinder",
+    "ConversationRouteContractError",
+    "ConversationRouteProposal",
     "ConversationRole",
     "ConversationSession",
     "ConversationalIntelligenceProvider",
@@ -102,4 +118,6 @@ __all__ = [
     "UnsupportedConversationError",
     "RoutingPolicy",
     "RoutingPolicyContractError",
+    "local_conversation_need",
+    "resource_from_descriptor",
 ]

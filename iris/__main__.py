@@ -10,8 +10,14 @@ from collections.abc import Callable, Sequence
 from iris.core.request import Request
 from iris.dispatch import CommandDispatcher, Dispatcher
 from iris.intelligence import (
+    ConversationBindingError,
+    ConversationDiscoveryContractError,
+    ConversationDiscoveryError,
     ConversationLimitError,
+    ConversationRouteBinder,
+    ConversationRouteContractError,
     ConversationSession,
+    IntelligenceRouteStatus,
     IntelligenceRuntime,
     ModelNotFoundError,
     ModelUnavailableError,
@@ -133,28 +139,101 @@ def _safe_terminal_text(value: str) -> str:
     )
 
 
-def entrypoint(argv: Sequence[str] | None = None) -> None:
+def entrypoint(
+    argv: Sequence[str] | None = None,
+    *,
+    input_fn: Callable[[str], str] = input,
+    output_fn: Callable[[str], None] = print,
+) -> None:
     """Parse an explicit chat invocation while preserving bare legacy IRIS."""
 
     arguments = sys.argv[1:] if argv is None else argv
     if not arguments:
-        main()
+        main(input_fn=input_fn, output_fn=output_fn)
         return
     parser = argparse.ArgumentParser(prog="iris")
     commands = parser.add_subparsers(dest="command", required=True)
     chat = commands.add_parser("chat", help="conversación textual local con Ollama")
-    chat.add_argument("--model", required=True, help="modelo Ollama instalado")
+    selection = chat.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--model", help="modelo Ollama instalado")
+    selection.add_argument(
+        "--select", action="store_true", help="recomendar un modelo local"
+    )
     parsed = parser.parse_args(arguments)
     if parsed.command == "chat":
         provider = OllamaProvider()
-        runtime = IntelligenceRuntime(ProviderRegistry([provider]))
+        registry = ProviderRegistry([provider])
+        if parsed.select:
+            session = _select_chat_session(registry, input_fn, output_fn)
+            main(input_fn=input_fn, output_fn=output_fn, chat_session=session)
+            return
+        runtime = IntelligenceRuntime(registry)
         main(
+            input_fn=input_fn,
+            output_fn=output_fn,
             chat_session=ConversationSession(
                 runtime,
                 provider_id=provider.provider_id,
                 model_id=parsed.model,
-            )
+            ),
         )
+
+
+def _select_chat_session(
+    registry: ProviderRegistry,
+    input_fn: Callable[[str], str],
+    output_fn: Callable[[str], None],
+) -> ConversationSession | None:
+    """Recommend, confirm and revalidate before creating a temporary chat."""
+
+    binder = ConversationRouteBinder(registry)
+    try:
+        proposal = binder.propose()
+    except (
+        ConversationDiscoveryError,
+        ConversationDiscoveryContractError,
+        ConversationRouteContractError,
+    ) as exc:
+        output_fn(f"Selección no disponible: {_safe_terminal_text(str(exc))}")
+        return None
+    output_fn(_safe_terminal_text(proposal.explanation))
+    if proposal.route.status is IntelligenceRouteStatus.UNSATISFIED:
+        output_fn("No hay un modelo local compatible; no se creó una sesión.")
+        return None
+    identity = proposal.selected_identity
+    if identity is None:
+        raise RuntimeError("satisfied route lacks a selected identity")
+    while True:
+        try:
+            answer = input_fn(
+                "¿Usar "
+                f"{_safe_terminal_text(identity[0])}/"
+                f"{_safe_terminal_text(identity[1])} para un chat temporal? [si/no]> "
+            )
+        except (EOFError, KeyboardInterrupt):
+            output_fn("Selección cancelada; no se creó una sesión.")
+            return None
+        if answer.strip().lower() == "no":
+            output_fn("Selección cancelada; no se creó una sesión.")
+            return None
+        if answer.strip().lower() == "si":
+            break
+        output_fn("Responde 'si' o 'no'.")
+    try:
+        session = binder.bind(proposal)
+    except (
+        ConversationDiscoveryError,
+        ConversationDiscoveryContractError,
+        ConversationBindingError,
+    ) as exc:
+        output_fn(f"Revalidación falló: {_safe_terminal_text(str(exc))}")
+        return None
+    output_fn(
+        f"Modelo confirmado: {_safe_terminal_text(session.provider_id)}/"
+        f"{_safe_terminal_text(session.model_id)}. "
+        "El chat comenzará al enviar un mensaje."
+    )
+    return session
 
 
 if __name__ == "__main__":
