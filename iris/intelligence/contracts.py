@@ -1,12 +1,17 @@
-"""Structural contract for interchangeable intelligence providers."""
+"""Structural contracts for interchangeable intelligence providers."""
 
-from typing import Protocol, runtime_checkable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from iris.intelligence.models import (
     IntelligenceRequest,
     IntelligenceResult,
     ModelDescriptor,
 )
+
+if TYPE_CHECKING:
+    from iris.intelligence.conversation import ConversationRequest
 
 
 @runtime_checkable
@@ -24,4 +29,13 @@ class IntelligenceProvider(Protocol):
 
     def infer(self, request: IntelligenceRequest) -> IntelligenceResult:
         """Execute one text inference request without selecting another model."""
+        ...
+
+
+@runtime_checkable
+class ConversationalIntelligenceProvider(IntelligenceProvider, Protocol):
+    """Optional chat capability; infer-only providers remain valid."""
+
+    def chat(self, request: ConversationRequest) -> IntelligenceResult:
+        """Generate one assistant response for ordered conversational messages."""
         ...

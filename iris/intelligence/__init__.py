@@ -1,6 +1,21 @@
 """Provider-independent generative intelligence boundary for IRIS."""
 
-from iris.intelligence.contracts import IntelligenceProvider
+from iris.intelligence.contracts import (
+    ConversationalIntelligenceProvider,
+    IntelligenceProvider,
+)
+from iris.intelligence.conversation import (
+    MAX_CONTEXT_CHARACTERS,
+    MAX_OUTPUT_TOKENS,
+    MAX_PREVIOUS_TURNS,
+    MAX_USER_CHARACTERS,
+    ConversationBusyError,
+    ConversationLimitError,
+    ConversationMessage,
+    ConversationRequest,
+    ConversationRole,
+    ConversationSession,
+)
 from iris.intelligence.models import (
     IntelligenceRequest,
     IntelligenceResult,
@@ -39,6 +54,7 @@ from iris.intelligence.runtime import (
     ModelNotFoundError,
     ModelUnavailableError,
     ProviderContractError,
+    UnsupportedConversationError,
 )
 
 __all__ = [
@@ -46,6 +62,13 @@ __all__ = [
     "CandidateRejectionReason",
     "CandidateResolution",
     "CandidateResolver",
+    "ConversationBusyError",
+    "ConversationLimitError",
+    "ConversationMessage",
+    "ConversationRequest",
+    "ConversationRole",
+    "ConversationSession",
+    "ConversationalIntelligenceProvider",
     "DeterministicRoutingPolicy",
     "DuplicateProviderError",
     "DuplicateIntelligenceResourceError",
@@ -63,6 +86,10 @@ __all__ = [
     "IntelligenceRouter",
     "IntelligenceRuntime",
     "IntelligenceStatus",
+    "MAX_CONTEXT_CHARACTERS",
+    "MAX_OUTPUT_TOKENS",
+    "MAX_PREVIOUS_TURNS",
+    "MAX_USER_CHARACTERS",
     "ModelCapability",
     "ModelDescriptor",
     "ModelAffinity",
@@ -72,6 +99,7 @@ __all__ = [
     "ProviderContractError",
     "ProviderNotFoundError",
     "ProviderRegistry",
+    "UnsupportedConversationError",
     "RoutingPolicy",
     "RoutingPolicyContractError",
 ]
