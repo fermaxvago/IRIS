@@ -180,7 +180,9 @@ def test_model_discovery_translates_only_demonstrated_text_models() -> None:
     assert model.provider_id == "ollama-local"
     assert model.location is ModelLocation.LOCAL
     assert model.available is True
-    assert model.capabilities == frozenset({ModelCapability.TEXT_GENERATION})
+    assert model.capabilities == frozenset(
+        {ModelCapability.TEXT_GENERATION, ModelCapability.CONVERSATION}
+    )
     assert model.context_window == 40_960
     assert model.metadata == {
         "ollama.capabilities": ("completion", "tools"),

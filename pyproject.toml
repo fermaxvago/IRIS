@@ -21,7 +21,7 @@ dev = [
 ]
 
 [project.scripts]
-iris = "iris.__main__:main"
+iris = "iris.__main__:entrypoint"
 
 [tool.setuptools.packages.find]
 include = ["iris*"]

@@ -1,12 +1,24 @@
 """Inference runtime for an explicitly selected provider and model."""
 
-from iris.intelligence.contracts import IntelligenceProvider
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from iris.intelligence.contracts import (
+    ConversationalIntelligenceProvider,
+    IntelligenceProvider,
+)
 from iris.intelligence.models import (
     IntelligenceRequest,
     IntelligenceResult,
+    IntelligenceStatus,
+    ModelCapability,
     ModelDescriptor,
 )
 from iris.intelligence.registry import ProviderRegistry
+
+if TYPE_CHECKING:
+    from iris.intelligence.conversation import ConversationRequest
 
 
 class ModelNotFoundError(LookupError):
@@ -19,6 +31,10 @@ class ModelUnavailableError(RuntimeError):
 
 class ProviderContractError(ValueError):
     """Raised when a provider violates the IntelligenceProvider contract."""
+
+
+class UnsupportedConversationError(RuntimeError):
+    """The selected provider or model does not declare conversational support."""
 
 
 class IntelligenceRuntime:
@@ -63,6 +79,49 @@ class IntelligenceRuntime:
             raise ProviderContractError(
                 "provider result model identifier does not match the request"
             )
+        return result
+
+    def chat(
+        self,
+        provider_id: str,
+        request: ConversationRequest,
+    ) -> IntelligenceResult:
+        """Validate one explicit chat capability without changing legacy inference."""
+
+        from iris.intelligence.conversation import ConversationRequest
+
+        if not isinstance(request, ConversationRequest):
+            raise TypeError("request must be a ConversationRequest")
+        provider = self._registry.get(provider_id)
+        model = self._find_model(provider, provider_id, request.model_id)
+        if not model.available:
+            raise ModelUnavailableError(
+                f"model is not available: {provider_id}/{request.model_id}"
+            )
+        if ModelCapability.CONVERSATION not in model.capabilities or not isinstance(
+            provider, ConversationalIntelligenceProvider
+        ):
+            raise UnsupportedConversationError(
+                f"chat is not supported: {provider_id}/{request.model_id}"
+            )
+        result = provider.chat(request)
+        if not isinstance(result, IntelligenceResult):
+            raise ProviderContractError("chat provider returned an invalid result")
+        if result.request_id != request.request_id:
+            raise ProviderContractError("chat result request identifier does not match")
+        if result.provider_id != provider_id:
+            raise ProviderContractError(
+                "chat result provider identifier does not match"
+            )
+        if result.model_id != request.model_id:
+            raise ProviderContractError("chat result model identifier does not match")
+        if not isinstance(result.status, IntelligenceStatus):
+            raise ProviderContractError("chat result has an invalid status")
+        if result.success:
+            if not isinstance(result.output, str) or not result.output.strip():
+                raise ProviderContractError("chat result has no assistant text")
+        elif not isinstance(result.diagnostic, str) or not result.diagnostic.strip():
+            raise ProviderContractError("failed chat result has no diagnostic")
         return result
 
     @staticmethod

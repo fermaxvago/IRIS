@@ -11,9 +11,11 @@ from urllib.parse import urlsplit
 from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
 
+from iris.intelligence.conversation import ConversationRequest
 from iris.intelligence.models import (
     IntelligenceRequest,
     IntelligenceResult,
+    IntelligenceStatus,
     ModelCapability,
     ModelDescriptor,
     ModelLocation,
@@ -76,6 +78,12 @@ class OllamaProtocolError(OllamaOperationalError):
     """Raised when the backend returns an unusable protocol response."""
 
     failure_kind = "protocol_error"
+
+
+class OllamaIncompleteError(OllamaOperationalError):
+    """Raised when a non-streaming chat response did not finish normally."""
+
+    failure_kind = "incomplete_generation"
 
 
 def _urllib_transport(
@@ -201,7 +209,12 @@ class OllamaProvider:
                     model_id=model_id,
                     provider_id=self.provider_id,
                     location=ModelLocation.LOCAL,
-                    capabilities=frozenset({ModelCapability.TEXT_GENERATION}),
+                    capabilities=frozenset(
+                        {
+                            ModelCapability.TEXT_GENERATION,
+                            ModelCapability.CONVERSATION,
+                        }
+                    ),
                     context_window=_context_window(details, model_info),
                     available=True,
                     metadata=metadata,
@@ -230,6 +243,74 @@ class OllamaProvider:
             return self._normalize_inference(payload, request)
         except OllamaOperationalError as exc:
             return self._failed_result(request, exc)
+
+    def chat(self, request: ConversationRequest) -> IntelligenceResult:
+        """Generate one bounded, non-streaming assistant message via /api/chat."""
+
+        if not isinstance(request, ConversationRequest):
+            raise TypeError("request must be a ConversationRequest")
+        try:
+            payload = self._request_json(
+                "POST",
+                "/api/chat",
+                payload={
+                    "model": request.model_id,
+                    "messages": [
+                        {"role": message.role.value, "content": message.content}
+                        for message in request.messages
+                    ],
+                    "stream": False,
+                    "options": {"num_predict": request.max_output_tokens},
+                },
+                operation=f"chat with {request.model_id}",
+            )
+            return self._normalize_chat(payload, request)
+        except OllamaOperationalError as exc:
+            return self._failed_result(request, exc)
+
+    def _normalize_chat(
+        self,
+        payload: Mapping[str, object],
+        request: ConversationRequest,
+    ) -> IntelligenceResult:
+        error = payload.get("error")
+        if error is not None:
+            if not isinstance(error, str) or not error.strip():
+                raise OllamaProtocolError(
+                    "Ollama chat returned an invalid error payload"
+                )
+            raise OllamaInferenceError(
+                f"Ollama rejected chat: {_truncate(error)}",
+                metadata={"ollama.error": _truncate(error)},
+            )
+        response_model = _required_string(
+            payload, "model", context="Ollama chat response"
+        )
+        if response_model != request.model_id:
+            raise OllamaProtocolError(
+                "Ollama chat response model does not match the request"
+            )
+        if payload.get("done") is not True:
+            raise OllamaIncompleteError("Ollama returned an incomplete chat response")
+        done_reason = payload.get("done_reason")
+        if done_reason is not None and done_reason != "stop":
+            raise OllamaIncompleteError("Ollama chat did not finish normally")
+        message = _require_object(payload.get("message"), "Ollama chat message")
+        if message.get("role") != "assistant":
+            raise OllamaProtocolError("Ollama chat message role is not assistant")
+        if message.get("tool_calls") not in (None, []):
+            raise OllamaProtocolError("Ollama chat returned unsupported tool calls")
+        if payload.get("tool_calls") not in (None, []):
+            raise OllamaProtocolError("Ollama chat returned unsupported tool calls")
+        output = _required_string(message, "content", context="Ollama chat message")
+        return IntelligenceResult(
+            request_id=request.request_id,
+            provider_id=self.provider_id,
+            model_id=request.model_id,
+            status=IntelligenceStatus.SUCCESS,
+            output=output,
+            metadata=_inference_metadata(payload),
+        )
 
     def _normalize_inference(
         self,
@@ -282,7 +363,7 @@ class OllamaProvider:
 
     def _failed_result(
         self,
-        request: IntelligenceRequest,
+        request: IntelligenceRequest | ConversationRequest,
         error: OllamaOperationalError,
     ) -> IntelligenceResult:
         metadata: dict[str, object] = {
@@ -292,9 +373,11 @@ class OllamaProvider:
         }
         if isinstance(error, OllamaAPIError) and error.status_code == 404:
             metadata["failure_kind"] = "model_not_found"
-        return IntelligenceResult.failed(
-            request,
+        return IntelligenceResult(
+            request_id=request.request_id,
             provider_id=self.provider_id,
+            model_id=request.model_id,
+            status=IntelligenceStatus.FAILURE,
             diagnostic=str(error),
             metadata=metadata,
         )

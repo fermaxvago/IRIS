@@ -46,6 +46,7 @@ class ModelCapability(StrEnum):
 
     TEXT_GENERATION = "text_generation"
     EMBEDDING = "embedding"
+    CONVERSATION = "conversation"
 
 
 @dataclass(frozen=True, slots=True)

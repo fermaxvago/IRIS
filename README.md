@@ -1,8 +1,8 @@
 # IRIS
 
 IRIS is an early-stage personal intelligent system for computing, automation,
-and device interaction. The project is currently a small Python foundation,
-not yet an autonomous assistant or an LLM application.
+and device interaction. It is not an autonomous assistant; its local chat mode
+generates text only and does not authorize actions.
 
 ## Current state
 
@@ -22,6 +22,8 @@ IRIS 0.1 currently provides:
   generative intelligence;
 - an optional Ollama provider for explicit local model discovery and text
   inference through that Intelligence boundary;
+- a bounded, in-memory local chat session using an explicitly selected Ollama
+  model, with no tools or automatic continuation;
 - typed intelligence needs, routable resources, hard-constraint candidate
   resolution, and a deterministic replaceable routing policy;
 - structured `EXACT`, `DEGRADED`, and `UNSATISFIED` intelligence routes;
@@ -128,6 +130,24 @@ Current commands:
 | `estado` | Shows a best-effort system snapshot. |
 | `ayuda` | Lists available commands. |
 | `salir` | Closes IRIS cleanly. |
+
+To enter local text chat with an already installed Ollama model, run:
+
+```powershell
+python -m iris chat --model qwen3:8b
+# or: iris chat --model qwen3:8b
+```
+
+The chat uses the loopback Ollama endpoint and sends no tool definitions.
+`/reiniciar` clears the temporary transcript; `/salir` returns to the legacy
+`IRIS>` command prompt. Other input, including `estado` and unknown slash
+commands, is conversation text and cannot dispatch capabilities. The session
+retains at most eight completed turns, accepts at most 2,000 characters per user
+message and 6,000 aggregate message characters, and requests at most 256 output
+tokens. Reaching a limit rejects the turn without discarding history; reset is
+explicit. These are character/request limits, not an exact tokenizer or model
+context-window guarantee. No transcript is persisted, and chat responses do
+not authorize execution.
 
 Individual system metrics may display `No disponible` when the platform,
 permissions, or runtime cannot provide them. This is an expected recoverable
