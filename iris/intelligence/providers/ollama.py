@@ -249,16 +249,37 @@ class OllamaProvider:
 
         if not isinstance(request, ConversationRequest):
             raise TypeError("request must be a ConversationRequest")
+        if request.context is not None:
+            raise ValueError("contextual requests require chat_with_context")
+        return self._chat_request(request, request.messages[-1].content)
+
+    def chat_with_context(self, request: ConversationRequest) -> IntelligenceResult:
+        """Serialize approved data only in the final user-role message."""
+
+        if not isinstance(request, ConversationRequest):
+            raise TypeError("request must be a ConversationRequest")
+        if request.context is None:
+            raise ValueError("contextual chat requires a context payload")
+        request.context._assert_claimed()
+        return self._chat_request(
+            request, request.messages[-1].content + request.context.section
+        )
+
+    def _chat_request(
+        self, request: ConversationRequest, final_user_content: str
+    ) -> IntelligenceResult:
         try:
+            messages = [
+                {"role": message.role.value, "content": message.content}
+                for message in request.messages
+            ]
+            messages[-1]["content"] = final_user_content
             payload = self._request_json(
                 "POST",
                 "/api/chat",
                 payload={
                     "model": request.model_id,
-                    "messages": [
-                        {"role": message.role.value, "content": message.content}
-                        for message in request.messages
-                    ],
+                    "messages": messages,
                     "stream": False,
                     "options": {"num_predict": request.max_output_tokens},
                 },

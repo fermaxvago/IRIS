@@ -39,3 +39,14 @@ class ConversationalIntelligenceProvider(IntelligenceProvider, Protocol):
     def chat(self, request: ConversationRequest) -> IntelligenceResult:
         """Generate one assistant response for ordered conversational messages."""
         ...
+
+
+@runtime_checkable
+class ContextualConversationalIntelligenceProvider(
+    ConversationalIntelligenceProvider, Protocol
+):
+    """Optional explicit capability for approved one-turn contextual requests."""
+
+    def chat_with_context(self, request: ConversationRequest) -> IntelligenceResult:
+        """Generate without dropping the request's contextual payload."""
+        ...
