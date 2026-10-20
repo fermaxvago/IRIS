@@ -158,6 +158,22 @@ explicit. These are character/request limits, not an exact tokenizer or model
 context-window guarantee. No transcript is persisted, and chat responses do
 not authorize execution.
 
+Programmatic contextual turns can use `ConversationContextBinder` with an
+existing `ContextSnapshot`. A trusted caller first obtains an explicit human
+decision about the proposal's exact item IDs and scopes, then calls
+`approve(...)`; `ConversationSession.send(..., approval=...)` consumes that
+process-local approval once. This is not a CLI consent workflow or a general
+authentication system. Only nonempty, resolved context with CURRENT/RECENT
+items and verifiable observation times is eligible. The default maximum age is
+10 minutes and approval expires after 2 minutes; both are configurable.
+Context is capped at eight items, 1,500 transmitted characters, and the
+existing 6,000-character combined request limit. Context is transmitted as
+escaped informational JSON in the current user-role message, not stored in
+session history or promoted to a system/tool role. Formatting alone cannot
+guarantee prompt-injection resistance; execution authority remains outside
+the model. A generated answer may repeat contextual facts, so callers must
+also handle its disclosure appropriately.
+
 Individual system metrics may display `No disponible` when the platform,
 permissions, or runtime cannot provide them. This is an expected recoverable
 condition and does not terminate the CLI.

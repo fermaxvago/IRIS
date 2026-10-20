@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from iris.intelligence.contracts import (
+    ContextualConversationalIntelligenceProvider,
     ConversationalIntelligenceProvider,
     IntelligenceProvider,
 )
@@ -92,6 +93,17 @@ class IntelligenceRuntime:
 
         if not isinstance(request, ConversationRequest):
             raise TypeError("request must be a ConversationRequest")
+        if request.context is not None:
+            request.context._claim(request, provider_id)
+        try:
+            return self._chat_validated(provider_id, request)
+        finally:
+            if request.context is not None:
+                request.context._clear_claim()
+
+    def _chat_validated(
+        self, provider_id: str, request: ConversationRequest
+    ) -> IntelligenceResult:
         provider = self._registry.get(provider_id)
         model = self._find_model(provider, provider_id, request.model_id)
         if not model.available:
@@ -104,7 +116,14 @@ class IntelligenceRuntime:
             raise UnsupportedConversationError(
                 f"chat is not supported: {provider_id}/{request.model_id}"
             )
-        result = provider.chat(request)
+        if request.context is None:
+            result = provider.chat(request)
+        else:
+            if not isinstance(provider, ContextualConversationalIntelligenceProvider):
+                raise UnsupportedConversationError(
+                    f"contextual chat is not supported: {provider_id}/{request.model_id}"
+                )
+            result = provider.chat_with_context(request)
         if not isinstance(result, IntelligenceResult):
             raise ProviderContractError("chat provider returned an invalid result")
         if result.request_id != request.request_id:

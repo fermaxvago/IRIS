@@ -1,15 +1,26 @@
 """Provider-independent generative intelligence boundary for IRIS."""
 
+from iris.intelligence.context_binding import (
+    ContextApproval,
+    ContextBindingError,
+    ContextDisclosureProposal,
+    ContextFreshnessPolicy,
+    ConversationContextBinder,
+)
 from iris.intelligence.contracts import (
+    ContextualConversationalIntelligenceProvider,
     ConversationalIntelligenceProvider,
     IntelligenceProvider,
 )
 from iris.intelligence.conversation import (
     MAX_CONTEXT_CHARACTERS,
+    MAX_CONTEXT_ITEMS,
+    MAX_CONTEXT_SECTION_CHARACTERS,
     MAX_OUTPUT_TOKENS,
     MAX_PREVIOUS_TURNS,
     MAX_USER_CHARACTERS,
     ConversationBusyError,
+    ConversationContextPayload,
     ConversationLimitError,
     ConversationMessage,
     ConversationRequest,
@@ -73,6 +84,8 @@ __all__ = [
     "CandidateResolution",
     "CandidateResolver",
     "ConversationBusyError",
+    "ConversationContextBinder",
+    "ConversationContextPayload",
     "ConversationBindingError",
     "ConversationDiscoveryContractError",
     "ConversationDiscoveryError",
@@ -85,6 +98,11 @@ __all__ = [
     "ConversationRole",
     "ConversationSession",
     "ConversationalIntelligenceProvider",
+    "ContextApproval",
+    "ContextBindingError",
+    "ContextDisclosureProposal",
+    "ContextFreshnessPolicy",
+    "ContextualConversationalIntelligenceProvider",
     "DeterministicRoutingPolicy",
     "DuplicateProviderError",
     "DuplicateIntelligenceResourceError",
@@ -103,6 +121,8 @@ __all__ = [
     "IntelligenceRuntime",
     "IntelligenceStatus",
     "MAX_CONTEXT_CHARACTERS",
+    "MAX_CONTEXT_ITEMS",
+    "MAX_CONTEXT_SECTION_CHARACTERS",
     "MAX_OUTPUT_TOKENS",
     "MAX_PREVIOUS_TURNS",
     "MAX_USER_CHARACTERS",
