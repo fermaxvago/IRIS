@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 from iris.core.request import Request
 from iris.dispatch import CommandDispatcher, Dispatcher
 from iris.intelligence import (
+    ContextBindingError,
     ConversationBindingError,
     ConversationDiscoveryContractError,
     ConversationDiscoveryError,
@@ -27,6 +28,10 @@ from iris.intelligence import (
     UnsupportedConversationError,
 )
 from iris.intelligence.providers import OllamaOperationalError, OllamaProvider
+from iris.intelligence.system_awareness import (
+    ConversationalSystemAwareness,
+    SystemAwarenessError,
+)
 from iris.router import DeterministicRouter
 from iris.router.contracts import Router
 from iris.router.models import RouteDecision
@@ -39,6 +44,7 @@ def main(
     router: Router[Request, RouteDecision] | None = None,
     dispatcher: Dispatcher | None = None,
     chat_session: ConversationSession | None = None,
+    system_awareness: ConversationalSystemAwareness | None = None,
 ) -> None:
     """Run the minimal interactive CLI.
 
@@ -55,7 +61,7 @@ def main(
     output_fn("Escribe 'estado', 'ayuda' o 'salir'.")
 
     if chat_session is not None:
-        _chat_loop(chat_session, input_fn, output_fn)
+        _chat_loop(chat_session, input_fn, output_fn, system_awareness)
 
     while True:
         try:
@@ -77,6 +83,7 @@ def _chat_loop(
     session: ConversationSession,
     input_fn: Callable[[str], str],
     output_fn: Callable[[str], None],
+    system_awareness: ConversationalSystemAwareness | None = None,
 ) -> None:
     output_fn(
         f"Chat local: {session.provider_id}/{session.model_id}. "
@@ -95,6 +102,94 @@ def _chat_loop(
         if command == "/reiniciar":
             session.reset()
             output_fn("Conversación temporal reiniciada.")
+            continue
+        parts = command.split(maxsplit=1)
+        if parts and parts[0] == "/recursos":
+            if len(parts) == 1 or not parts[1].strip():
+                output_fn("Uso: /recursos <pregunta sobre CPU y RAM>")
+                continue
+            awareness = system_awareness or ConversationalSystemAwareness()
+            try:
+                consultation = awareness.prepare(session, parts[1])
+            except (
+                SystemAwarenessError,
+                ContextBindingError,
+                ConversationLimitError,
+                ValueError,
+            ) as exc:
+                output_fn(
+                    f"Consulta de recursos no disponible: {_safe_terminal_text(str(exc))}"
+                )
+                continue
+            observation = consultation.observation
+            output_fn("IRIS — Observación local (system.status):")
+            output_fn(f"CPU: {_format_resource(observation.cpu_percent, '%')}")
+            output_fn(
+                f"RAM utilizada: {_format_resource(observation.ram_used_gb, 'GiB')}"
+            )
+            output_fn(f"RAM total: {_format_resource(observation.ram_total_gb, 'GiB')}")
+            output_fn(f"Captura (UTC): {observation.captured_at.isoformat()}")
+            if consultation.proposal is None:
+                missing = (
+                    name
+                    for name in ("cpu_percent", "ram_used_gb", "ram_total_gb")
+                    if getattr(observation, name) is None
+                )
+                output_fn(
+                    "Medición incompleta o inválida ("
+                    + ", ".join(missing)
+                    + "); no se enviará contexto al modelo."
+                )
+                continue
+            proposal = consultation.proposal
+            output_fn(
+                "Divulgación propuesta al modelo local "
+                f"{_safe_terminal_text(proposal.provider_id)}/"
+                f"{_safe_terminal_text(proposal.model_id)}:"
+            )
+            output_fn(
+                "Se enviarán estos datos y metadatos exactos como información, no instrucciones:"
+            )
+            output_fn(_safe_terminal_text(proposal.payload.section))
+            try:
+                answer = input_fn(
+                    "¿Autorizas esta divulgación para un turno? [sí/no]> "
+                )
+            except (EOFError, KeyboardInterrupt):
+                output_fn("Divulgación no autorizada. Volviendo a IRIS.")
+                return
+            if answer.strip().casefold() not in ("si", "sí"):
+                output_fn("Divulgación no autorizada; historial sin cambios.")
+                continue
+            try:
+                result = awareness.send_approved(session, proposal)
+            except (
+                ContextBindingError,
+                ConversationLimitError,
+                ModelNotFoundError,
+                ModelUnavailableError,
+                ProviderNotFoundError,
+                UnsupportedConversationError,
+                ProviderContractError,
+                OllamaOperationalError,
+                ValueError,
+            ) as exc:
+                output_fn(
+                    f"Explicación no disponible: {_safe_terminal_text(str(exc))}; historial sin cambios."
+                )
+                continue
+            except KeyboardInterrupt:
+                output_fn("Inferencia interrumpida; historial sin cambios.")
+                continue
+            if not result.success:
+                kind = result.metadata.get("failure_kind", "provider_failure")
+                output_fn(
+                    f"Modelo falló ({_safe_terminal_text(str(kind))}); historial sin cambios."
+                )
+                continue
+            if result.output is None:
+                raise ProviderContractError("successful chat result lacks output")
+            output_fn(_safe_terminal_text(result.output))
             continue
         try:
             result = session.send(content)
@@ -128,15 +223,23 @@ def _chat_loop(
         output_fn(_safe_terminal_text(result.output))
 
 
-def _safe_terminal_text(value: str) -> str:
+def _safe_terminal_text(value: str, *, encoding: str | None = None) -> str:
     """Escape control and formatting characters in untrusted model text."""
 
-    return "".join(
+    safe = "".join(
         character
         if character == "\n" or not unicodedata.category(character).startswith("C")
         else ascii(character)[1:-1]
         for character in value
     )
+    # Windows terminals may use a legacy code page. Preserve the transcript and
+    # render unencodable characters visibly instead of crashing the CLI.
+    codec = encoding or sys.stdout.encoding or "utf-8"
+    return safe.encode(codec, errors="backslashreplace").decode(codec)
+
+
+def _format_resource(value: float | None, unit: str) -> str:
+    return "No disponible" if value is None else f"{value} {unit}"
 
 
 def entrypoint(

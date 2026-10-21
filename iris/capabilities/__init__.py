@@ -17,6 +17,7 @@ from iris.capabilities.registry import (
 from iris.capabilities.runtime import CapabilityRuntime
 from iris.capabilities.system_status import (
     SYSTEM_STATUS_CAPABILITY_ID,
+    SystemResourceObservation,
     SystemStatusTool,
 )
 
@@ -34,6 +35,7 @@ __all__ = [
     "DuplicateCapabilityError",
     "ExecutionStatus",
     "SystemStatusTool",
+    "SystemResourceObservation",
     "Tool",
     "create_default_runtime",
 ]
