@@ -137,7 +137,22 @@ To enter local text chat with an already installed Ollama model, run:
 python -m iris chat --model qwen3:8b
 # or: iris chat --model qwen3:8b
 python -m iris chat --select
+# Optional, for a model that explicitly advertises boolean direct mode:
+python -m iris chat --model qwen3:8b --direct
+python -m iris chat --select --direct
 ```
+
+Standard chat does not send Ollama's `think` field. `--direct` explicitly
+requests `think: false` for the confirmed model only; IRIS checks the exact
+installed model's `/api/show` thinking values before starting and again before
+each turn. An absent, ambiguous, or incompatible advertisement rejects direct
+mode without sending the message. This setting is local to the temporary CLI
+provider/session; it does not change other chats or automatically choose another
+model. Both modes keep the 256-token output request maximum, non-streaming chat,
+and the existing context consent rules. There is no automatic retry or fallback.
+On incomplete generation, IRIS may show provider-reported termination reason
+and token counts when valid; these do not establish why the generation failed
+and never include the model's hidden reasoning text.
 
 `--select` discovers models from the explicitly configured loopback Ollama
 provider, requires local conversational capability, and shows the deterministic

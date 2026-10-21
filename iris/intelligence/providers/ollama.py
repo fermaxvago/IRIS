@@ -86,6 +86,12 @@ class OllamaIncompleteError(OllamaOperationalError):
     failure_kind = "incomplete_generation"
 
 
+class OllamaDirectModeUnsupportedError(OllamaOperationalError):
+    """The selected model does not advertise boolean direct generation."""
+
+    failure_kind = "unsupported_direct_mode"
+
+
 def _urllib_transport(
     method: str,
     url: str,
@@ -116,11 +122,15 @@ class OllamaProvider:
         provider_id: str = DEFAULT_OLLAMA_PROVIDER_ID,
         endpoint: str = DEFAULT_OLLAMA_ENDPOINT,
         timeout: float = DEFAULT_OLLAMA_TIMEOUT_SECONDS,
+        direct_generation: bool = False,
         _transport: _Transport | None = None,
     ) -> None:
         self._provider_id = _validate_identifier(provider_id, "provider_id")
         self._endpoint = _normalize_endpoint(endpoint)
         self._timeout = _validate_timeout(timeout)
+        if not isinstance(direct_generation, bool):
+            raise TypeError("direct_generation must be a boolean")
+        self._direct_generation = direct_generation
         self._transport = _transport or _urllib_transport
 
     @property
@@ -140,6 +150,49 @@ class OllamaProvider:
         """Return the request timeout in seconds."""
 
         return self._timeout
+
+    def verify_direct_model(self, model_id: str) -> None:
+        """Fail closed unless this exact installed model advertises ``think: false``.
+
+        This is an Ollama-specific metadata check, not conversational inference.
+        It is repeated immediately before every direct chat request.
+        """
+
+        model_id = _validate_identifier(model_id, "model_id")
+        if not any(model.model_id == model_id for model in self.list_models()):
+            raise OllamaDirectModeUnsupportedError(
+                f"direct mode model is not installed: {model_id}"
+            )
+        details = self._request_json(
+            "POST",
+            "/api/show",
+            payload={"model": model_id},
+            operation=f"direct-mode inspection for {model_id}",
+        )
+        thinking = details.get("thinking")
+        if thinking is None:
+            raise OllamaDirectModeUnsupportedError(
+                f"direct mode is not advertised for {model_id}"
+            )
+        if not isinstance(thinking, dict):
+            raise OllamaProtocolError("Ollama thinking metadata must be an object")
+        values = thinking.get("values")
+        if (
+            not isinstance(values, list)
+            or not values
+            or any(
+                type(value) not in (bool, str) or (isinstance(value, str) and not value)
+                for value in values
+            )
+        ):
+            raise OllamaProtocolError("Ollama thinking values are malformed")
+        default = thinking.get("default")
+        if type(default) not in (bool, str) or default not in values:
+            raise OllamaProtocolError("Ollama thinking default is malformed")
+        if not any(value is False for value in values):
+            raise OllamaDirectModeUnsupportedError(
+                f"boolean direct mode is unsupported for {model_id}"
+            )
 
     def list_models(self) -> tuple[ModelDescriptor, ...]:
         """Discover installed text-generation models from the Ollama API.
@@ -269,20 +322,25 @@ class OllamaProvider:
         self, request: ConversationRequest, final_user_content: str
     ) -> IntelligenceResult:
         try:
+            if self._direct_generation:
+                self.verify_direct_model(request.model_id)
             messages = [
                 {"role": message.role.value, "content": message.content}
                 for message in request.messages
             ]
             messages[-1]["content"] = final_user_content
+            chat_payload: dict[str, object] = {
+                "model": request.model_id,
+                "messages": messages,
+                "stream": False,
+                "options": {"num_predict": request.max_output_tokens},
+            }
+            if self._direct_generation:
+                chat_payload["think"] = False
             payload = self._request_json(
                 "POST",
                 "/api/chat",
-                payload={
-                    "model": request.model_id,
-                    "messages": messages,
-                    "stream": False,
-                    "options": {"num_predict": request.max_output_tokens},
-                },
+                payload=chat_payload,
                 operation=f"chat with {request.model_id}",
             )
             return self._normalize_chat(payload, request)
@@ -312,10 +370,16 @@ class OllamaProvider:
                 "Ollama chat response model does not match the request"
             )
         if payload.get("done") is not True:
-            raise OllamaIncompleteError("Ollama returned an incomplete chat response")
+            raise OllamaIncompleteError(
+                "Ollama returned an incomplete chat response",
+                metadata=_inference_metadata(payload),
+            )
         done_reason = payload.get("done_reason")
         if done_reason is not None and done_reason != "stop":
-            raise OllamaIncompleteError("Ollama chat did not finish normally")
+            raise OllamaIncompleteError(
+                "Ollama chat did not finish normally",
+                metadata=_inference_metadata(payload),
+            )
         message = _require_object(payload.get("message"), "Ollama chat message")
         if message.get("role") != "assistant":
             raise OllamaProtocolError("Ollama chat message role is not assistant")
@@ -647,8 +711,10 @@ def _copy_optional_integer(
     value = source.get(source_key)
     if value is None:
         return
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise OllamaProtocolError(f"Ollama field {source_key} must be an integer")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise OllamaProtocolError(
+            f"Ollama field {source_key} must be a nonnegative integer"
+        )
     target[target_key] = value
 
 

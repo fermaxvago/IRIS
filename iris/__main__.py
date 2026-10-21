@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from iris.core.request import Request
 from iris.dispatch import CommandDispatcher, Dispatcher
@@ -184,7 +184,8 @@ def _chat_loop(
             if not result.success:
                 kind = result.metadata.get("failure_kind", "provider_failure")
                 output_fn(
-                    f"Modelo falló ({_safe_terminal_text(str(kind))}); historial sin cambios."
+                    f"Modelo falló ({_safe_terminal_text(str(kind))})"
+                    f"{_generation_diagnostic(result.metadata)}; historial sin cambios."
                 )
                 continue
             if result.output is None:
@@ -215,7 +216,8 @@ def _chat_loop(
         if not result.success:
             kind = result.metadata.get("failure_kind", "provider_failure")
             output_fn(
-                f"Chat falló ({_safe_terminal_text(str(kind))}); historial sin cambios."
+                f"Chat falló ({_safe_terminal_text(str(kind))})"
+                f"{_generation_diagnostic(result.metadata)}; historial sin cambios."
             )
             continue
         if result.output is None:
@@ -242,6 +244,23 @@ def _format_resource(value: float | None, unit: str) -> str:
     return "No disponible" if value is None else f"{value} {unit}"
 
 
+def _generation_diagnostic(metadata: Mapping[str, object]) -> str:
+    """Display only validated operational facts, never prompts or reasoning."""
+
+    details: list[str] = []
+    reason = metadata.get("ollama.done_reason")
+    if isinstance(reason, str):
+        details.append(f"fin={_safe_terminal_text(reason)}")
+    for key, label in (
+        ("ollama.eval_count", "tokens generados"),
+        ("ollama.prompt_eval_count", "tokens de entrada"),
+    ):
+        value = metadata.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            details.append(f"{label}={value}")
+    return " [" + ", ".join(details) + "]" if details else ""
+
+
 def entrypoint(
     argv: Sequence[str] | None = None,
     *,
@@ -262,15 +281,40 @@ def entrypoint(
     selection.add_argument(
         "--select", action="store_true", help="recomendar un modelo local"
     )
+    chat.add_argument(
+        "--direct",
+        action="store_true",
+        help="generación directa si el modelo la admite",
+    )
     parsed = parser.parse_args(arguments)
     if parsed.command == "chat":
-        provider = OllamaProvider()
+        provider = (
+            OllamaProvider(direct_generation=True)
+            if parsed.direct
+            else OllamaProvider()
+        )
         registry = ProviderRegistry([provider])
         if parsed.select:
             session = _select_chat_session(registry, input_fn, output_fn)
+            if session is not None and parsed.direct:
+                try:
+                    provider.verify_direct_model(session.model_id)
+                except OllamaOperationalError as exc:
+                    output_fn(
+                        f"Modo directo no disponible: {_safe_terminal_text(str(exc))}"
+                    )
+                    return
             main(input_fn=input_fn, output_fn=output_fn, chat_session=session)
             return
         runtime = IntelligenceRuntime(registry)
+        if parsed.direct:
+            try:
+                provider.verify_direct_model(parsed.model)
+            except OllamaOperationalError as exc:
+                output_fn(
+                    f"Modo directo no disponible: {_safe_terminal_text(str(exc))}"
+                )
+                return
         main(
             input_fn=input_fn,
             output_fn=output_fn,
