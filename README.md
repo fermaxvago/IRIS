@@ -148,6 +148,18 @@ models, start inference, authorize tools, or choose a fallback. `--model` and
 `--select` are mutually exclusive.
 
 The chat uses the loopback Ollama endpoint and sends no tool definitions.
+Inside either chat mode, `/recursos <pregunta>` takes one fresh local
+`system.status` reading for CPU utilization and used/total RAM in GiB. A bare
+`/recursos` shows usage and takes no reading. IRIS displays the measurements,
+their capture time, the exact informational JSON (including identifiers,
+scope and provenance), and the selected provider/model before asking for an
+explicit `si` or `sí`. Any other answer declines disclosure. Only approval
+for that exact proposal permits one contextual model turn. Missing or invalid
+measurements are shown locally when possible but are never sent as a complete
+context. The textual `estado` command and ordinary chat are unchanged.
+`/recursos` is not monitoring or a resource-pressure diagnosis; the model only
+explains a point-in-time reading and cannot modify the system.
+
 `/reiniciar` clears the temporary transcript; `/salir` returns to the legacy
 `IRIS>` command prompt. Other input, including `estado` and unknown slash
 commands, is conversation text and cannot dispatch capabilities. The session
@@ -162,9 +174,11 @@ Programmatic contextual turns can use `ConversationContextBinder` with an
 existing `ContextSnapshot`. A trusted caller first obtains an explicit human
 decision about the proposal's exact item IDs and scopes, then calls
 `approve(...)`; `ConversationSession.send(..., approval=...)` consumes that
-process-local approval once. This is not a CLI consent workflow or a general
-authentication system. Only nonempty, resolved context with CURRENT/RECENT
-items and verifiable observation times is eligible. The default maximum age is
+process-local approval once. The `/recursos` command adds a CLI consent flow
+for this specific system observation, not for arbitrary contextual evidence;
+neither path is a general authentication system. Only nonempty, resolved
+context with CURRENT/RECENT items and verifiable observation times is eligible.
+The default maximum age is
 10 minutes and approval expires after 2 minutes; both are configurable.
 Context is capped at eight items, 1,500 transmitted characters, and the
 existing 6,000-character combined request limit. Context is transmitted as
