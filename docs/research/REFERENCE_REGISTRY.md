@@ -148,6 +148,7 @@ per entry. License notes are a basic provenance record, not legal advice.
 | Microsoft Agent Framework | <https://github.com/microsoft/agent-framework> | `REVIEWED` | MIT |
 | AutoGen | <https://github.com/microsoft/autogen> | `CHANGED` | Mixed scope; root CC-BY-4.0 and code package license files must be checked |
 | PersonalJarvis | <https://github.com/PersonalJarvis/PersonalJarvis> | `REGISTERED` | Apache-2.0 on current line; releases through 1.6.0 remain MIT |
+| Ollama | <https://github.com/ollama/ollama> | `REVIEWED` | MIT at repository root; bundled components may differ |
 | Particle Interaction - wonderstone | <https://github.com/wonderstone/particle-interaction> | `REGISTERED` | No license recorded at repository root |
 
 ## Kubernetes
@@ -982,6 +983,39 @@ per entry. License notes are a basic provenance record, not legal advice.
 - **General notes:** Preserve prior URL evidence in `Known changes` if a future
   correction is verified. Registration does not implement gesture, vision, or
   particle interaction in IRIS.
+
+## Ollama
+
+- **Name:** Ollama
+- **Canonical URL:** <https://github.com/ollama/ollama>
+- **Status:** `REVIEWED`
+- **Relevant areas:** Local model transport, chat protocol, model inspection,
+  thinking-control compatibility.
+- **Date registered:** 2026-10-21
+- **Last verified:** 2026-10-21
+- **Relevant Work Packages:** WP067 (protocol review); the adapter predates
+  this reference record.
+- **Research history:** WP067 checked the official
+  [thinking controls](https://docs.ollama.com/capabilities/thinking) and
+  [API schema](https://github.com/ollama/ollama/blob/main/docs/openapi.yaml)
+  against the installed `/api/show` response for `qwen3:8b`.
+  Analysis outcome: `INFLUENCED`. Explicit boolean `false` in
+  `thinking.values` gates the opt-in `think: false` request.
+- **Known changes:** None recorded. API behavior may vary by installed version;
+  compatibility is checked against the live server before use.
+- **Influenced decisions:** Do not infer direct-mode support from model family,
+  HTTP success, or named thinking levels; revalidate before each chat request.
+- **Adopted patterns:** Ollama's documented top-level `think` field and
+  `/api/show` compatibility vocabulary, implemented inside the existing IRIS
+  provider with IRIS's own validation.
+- **Rejected patterns:** Automatic fallback, token-limit increase, reasoning
+  trace capture, and provider-neutral thinking profiles.
+- **License/provenance notes:** The official repository identifies its root
+  license as MIT. Model weights and bundled components can have different
+  terms; no third-party source code or assets were copied into IRIS.
+- **General notes:** Qwen3 documentation was evaluated as unnecessary to the
+  WP067 compatibility rule: installed model metadata, not family literature,
+  determines eligibility. No separate Qwen3 reference is registered here.
 
 ## Explicit exclusions
 
