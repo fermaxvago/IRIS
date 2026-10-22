@@ -163,6 +163,16 @@ models, start inference, authorize tools, or choose a fallback. `--model` and
 `--select` are mutually exclusive.
 
 The chat uses the loopback Ollama endpoint and sends no tool definitions.
+Inside chat, `/diagnostico` displays a read-only, coherent snapshot of the
+bound provider/model, retained turn and character counts, continuity policy,
+revision, and reset generation. It does not contact the model, inspect device
+resources, consume context approval, or display messages. The bound model's
+current availability is **not checked**; character counts are not token counts
+or guaranteed capacity for a contextual request. Known provider failures may
+be explained by category, but the explanation does not establish their root
+cause. Failed inference does not commit a conversational turn; it may still
+have performed work inside Ollama. Diagnostics are neither logged nor saved.
+
 Temporary conversation continuity is disabled by default. Within chat,
 `/continuidad estado` shows the policy and active turn count;
 `/continuidad activar` explicitly permits a rolling window for this session;
@@ -222,8 +232,7 @@ message and 6,000 aggregate message characters, and requests at most 256 output
 tokens. With continuity disabled, reaching a limit rejects the turn without
 discarding history; reset is explicit. These are character/request limits, not
 an exact tokenizer or model context-window guarantee. No transcript is
-persisted, and chat responses do
-not authorize execution.
+persisted, and chat responses do not authorize execution.
 
 Programmatic contextual turns can use `ConversationContextBinder` with an
 existing `ContextSnapshot`. A trusted caller first obtains an explicit human

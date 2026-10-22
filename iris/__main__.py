@@ -10,8 +10,11 @@ from collections.abc import Callable, Mapping, Sequence
 from iris.core.request import Request
 from iris.dispatch import CommandDispatcher, Dispatcher
 from iris.intelligence import (
+    MAX_CONTEXT_CHARACTERS,
+    MAX_PREVIOUS_TURNS,
     ContextBindingError,
     ConversationBindingError,
+    ConversationBusyError,
     ConversationDiscoveryContractError,
     ConversationDiscoveryError,
     ConversationLimitError,
@@ -103,6 +106,33 @@ def _chat_loop(
         if command == "/salir":
             output_fn("Saliendo del chat. Volviendo a IRIS.")
             return
+        if command == "/diagnostico":
+            try:
+                snapshot = session.diagnostic_snapshot()
+            except ConversationBusyError:
+                output_fn("Diagnóstico no disponible: la conversación está ocupada.")
+                continue
+            output_fn("Diagnóstico de conversación (sin comprobar disponibilidad):")
+            output_fn(
+                "Proveedor vinculado: "
+                + _safe_terminal_text(snapshot.provider_id, allow_newline=False)
+            )
+            output_fn(
+                "Modelo vinculado: "
+                + _safe_terminal_text(snapshot.model_id, allow_newline=False)
+            )
+            output_fn(f"Turnos activos: {snapshot.active_turns}/{MAX_PREVIOUS_TURNS}")
+            output_fn(
+                f"Caracteres activos: {snapshot.active_characters}/"
+                f"{MAX_CONTEXT_CHARACTERS} (solo mensajes retenidos; no son tokens)"
+            )
+            state = "activada" if snapshot.continuity_enabled else "desactivada"
+            output_fn(f"Continuidad: {state}")
+            output_fn(
+                f"Revisión: {snapshot.revision}; generación: {snapshot.generation}"
+            )
+            output_fn("Disponibilidad actual del proveedor/modelo: no comprobada.")
+            continue
         if command == "/reiniciar":
             session.reset()
             output_fn("Conversación temporal reiniciada.")
@@ -197,10 +227,10 @@ def _chat_loop(
             output_fn("Inferencia interrumpida; historial sin cambios.")
             continue
         if not result.success:
-            kind = result.metadata.get("failure_kind", "provider_failure")
             output_fn(
-                f"Chat falló ({_safe_terminal_text(str(kind))})"
-                f"{_generation_diagnostic(result.metadata)}; historial sin cambios."
+                f"Chat falló: {_failure_explanation(result.metadata)}"
+                f"{_generation_diagnostic(result.metadata)}; "
+                "historial sin cambios (no se confirmó un turno)."
             )
             continue
         if result.output is None:
@@ -275,8 +305,13 @@ def _resource_consultation(
         return False
     try:
         result = awareness.send_approved(session, proposal)
+    except ContextBindingError:
+        output_fn(
+            "Divulgación no válida: la propuesta o aprobación ya no corresponde "
+            "al turno; la observación local se mostró, pero no se confirmó un turno."
+        )
+        return False
     except (
-        ContextBindingError,
         ConversationLimitError,
         ModelNotFoundError,
         ModelUnavailableError,
@@ -294,10 +329,10 @@ def _resource_consultation(
         output_fn("Inferencia interrumpida; historial sin cambios.")
         return False
     if not result.success:
-        kind = result.metadata.get("failure_kind", "provider_failure")
         output_fn(
-            f"Modelo falló ({_safe_terminal_text(str(kind))})"
-            f"{_generation_diagnostic(result.metadata)}; historial sin cambios."
+            f"Modelo falló: {_failure_explanation(result.metadata)}"
+            f"{_generation_diagnostic(result.metadata)}; "
+            "historial sin cambios (no se confirmó un turno)."
         )
         return False
     if result.output is None:
@@ -355,12 +390,15 @@ def _report_rollover(
         output_fn(f"Contexto actualizado: {action} de la ventana activa.")
 
 
-def _safe_terminal_text(value: str, *, encoding: str | None = None) -> str:
+def _safe_terminal_text(
+    value: str, *, encoding: str | None = None, allow_newline: bool = True
+) -> str:
     """Escape control and formatting characters in untrusted model text."""
 
     safe = "".join(
         character
-        if character == "\n" or not unicodedata.category(character).startswith("C")
+        if (character == "\n" and allow_newline)
+        or not unicodedata.category(character).startswith("C")
         else ascii(character)[1:-1]
         for character in value
     )
@@ -379,16 +417,41 @@ def _generation_diagnostic(metadata: Mapping[str, object]) -> str:
 
     details: list[str] = []
     reason = metadata.get("ollama.done_reason")
-    if isinstance(reason, str):
-        details.append(f"fin={_safe_terminal_text(reason)}")
+    if isinstance(reason, str) and reason in ("stop", "length"):
+        details.append(f"fin={reason}")
     for key, label in (
         ("ollama.eval_count", "tokens generados"),
         ("ollama.prompt_eval_count", "tokens de entrada"),
     ):
         value = metadata.get(key)
-        if isinstance(value, int) and not isinstance(value, bool):
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and 0 <= value <= 1_000_000_000
+        ):
             details.append(f"{label}={value}")
     return " [" + ", ".join(details) + "]" if details else ""
+
+
+def _failure_explanation(metadata: Mapping[str, object]) -> str:
+    """Explain only known failure categories; metadata is not trusted prose."""
+
+    kind = metadata.get("failure_kind")
+    explanations = {
+        "provider_unavailable": "No se pudo contactar al proveedor",
+        "timeout": "La operación superó el tiempo de espera",
+        "incomplete_generation": "No se obtuvo una respuesta completa y utilizable",
+        "unsupported_direct_mode": "El modelo no admite el modo directo solicitado",
+        "protocol_error": "La respuesta del proveedor incumplió el contrato esperado",
+        "model_not_found": "El proveedor no expuso el modelo seleccionado",
+    }
+    return (
+        explanations.get(
+            kind, "La operación falló; no se estableció una causa específica"
+        )
+        if isinstance(kind, str)
+        else "La operación falló; no se estableció una causa específica"
+    )
 
 
 def entrypoint(

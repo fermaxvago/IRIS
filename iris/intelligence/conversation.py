@@ -171,6 +171,19 @@ class ConversationWindow:
     retired_turns: int
 
 
+@dataclass(frozen=True, slots=True)
+class ConversationDiagnosticSnapshot:
+    """One coherent, content-free view of confirmed session state."""
+
+    provider_id: str
+    model_id: str
+    active_turns: int
+    active_characters: int
+    continuity_enabled: bool
+    revision: int
+    generation: int
+
+
 class ConversationSession:
     """Commit complete pairs only after a validated provider response."""
 
@@ -224,6 +237,26 @@ class ConversationSession:
     @property
     def last_commit_evictions(self) -> int:
         return self._last_commit_evictions
+
+    def diagnostic_snapshot(self) -> ConversationDiagnosticSnapshot:
+        """Inspect confirmed state under the session's existing exclusion lock."""
+
+        if not self._lock.acquire(blocking=False):
+            raise ConversationBusyError("conversation is busy")
+        try:
+            return ConversationDiagnosticSnapshot(
+                provider_id=self.provider_id,
+                model_id=self.model_id,
+                active_turns=len(self._messages) // 2,
+                active_characters=sum(
+                    len(message.content) for message in self._messages
+                ),
+                continuity_enabled=self._continuity_enabled,
+                revision=self._revision,
+                generation=self._generation,
+            )
+        finally:
+            self._lock.release()
 
     def set_continuity(self, enabled: bool) -> None:
         if not isinstance(enabled, bool):
