@@ -337,3 +337,57 @@ def test_reset_and_exit_preserve_existing_lifecycle() -> None:
     assert h.session.messages == () and h.session.generation == 1
     assert any("Uso: /recursos" in line for line in output)
     assert output[-1].startswith("IRIS apag")
+
+
+def test_full_session_denied_continuity_does_not_capture_resources() -> None:
+    h = harness()
+    for index in range(8):
+        h.session.send(f"turno {index}")
+    before = h.session.messages
+    output, prompts = drive(h, "/recursos ¿Cómo está mi RAM?", "no")
+    assert not h.captures and not h.provider.contextual
+    assert h.session.messages is before
+    assert any("Activar continuidad" in prompt for prompt in prompts)
+    assert not any("divulgación" in prompt for prompt in prompts)
+    assert any("Continuidad no autorizada" in line for line in output)
+
+
+def test_natural_resource_intent_keeps_observation_and_continuity_distinct() -> None:
+    h = harness()
+    for index in range(8):
+        h.session.send(f"turno {index}")
+    output, prompts = drive(h, "Revisa mi RAM", "sí", "no")
+    assert not h.captures and not h.provider.contextual
+    assert h.session.completed_turns == 8
+    assert any("observar" in prompt for prompt in prompts)
+    assert any("Activar continuidad" in prompt for prompt in prompts)
+    assert any("Continuidad no autorizada" in line for line in output)
+
+
+def test_resource_consultation_rolls_only_after_contextual_success() -> None:
+    h = harness()
+    for index in range(8):
+        h.session.send(f"turno {index}")
+    h.session.set_continuity(True)
+    before = h.session.messages
+    output, _ = drive(h, "/recursos ¿Cómo está mi RAM?", "sí")
+    assert len(h.captures) == 1 and len(h.provider.contextual) == 1
+    assert h.provider.contextual[-1].messages[:-1] == before
+    assert h.session.completed_turns == 8
+    assert h.session.messages[:-2] == before[2:]
+    assert h.session.last_commit_evictions == 1
+    assert any("retiró 1 turno" in line for line in output)
+
+
+def test_resource_provider_failure_preserves_full_confirmed_window() -> None:
+    h = harness()
+    for index in range(8):
+        h.session.send(f"turno {index}")
+    h.session.set_continuity(True)
+    h.provider.fail = True
+    before = h.session.messages
+    revision = h.session.revision
+    output, _ = drive(h, "Revisa mi RAM", "sí", "sí")
+    assert len(h.captures) == 1
+    assert h.session.messages is before and h.session.revision == revision
+    assert not any("Contexto actualizado" in line for line in output)

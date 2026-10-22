@@ -15,17 +15,15 @@ from uuid import uuid4
 
 from iris.context import ContextSnapshot, Freshness, ResolutionStatus
 from iris.intelligence.conversation import (
-    MAX_CONTEXT_CHARACTERS,
     MAX_CONTEXT_ITEMS,
     MAX_CONTEXT_SECTION_CHARACTERS,
-    MAX_PREVIOUS_TURNS,
-    MAX_USER_CHARACTERS,
     ConversationContextPayload,
     ConversationLimitError,
     ConversationMessage,
     ConversationRequest,
     ConversationRole,
     ConversationSession,
+    ConversationWindow,
 )
 from iris.memory.models import MemoryScope, utc_time
 from iris.work_identity.models import WorkSubject
@@ -65,7 +63,9 @@ class ContextDisclosureProposal:
     model_id: str
     session_id: str
     session_generation: int
+    session_revision: int
     turn_index: int
+    window: ConversationWindow
     item_ids: tuple[str, ...]
     scopes: frozenset[MemoryScope]
     payload: ConversationContextPayload
@@ -128,7 +128,7 @@ class ConversationContextBinder:
         now = utc_time(self._clock(), "context binding clock")
         _eligible_snapshot(snapshot, subject, now, self._policy)
         payload = _payload(snapshot)
-        _request_budget(session, content, payload)
+        window = session.prepare_window(content, payload)
         proposal = ContextDisclosureProposal(
             session=session,
             snapshot=snapshot,
@@ -138,7 +138,9 @@ class ConversationContextBinder:
             model_id=session.model_id,
             session_id=session.session_id,
             session_generation=session.generation,
+            session_revision=window.revision,
             turn_index=session.completed_turns,
+            window=window,
             item_ids=payload.item_ids,
             scopes=frozenset(item.scope for item in snapshot.items),
             payload=payload,
@@ -216,8 +218,7 @@ class ConversationContextBinder:
         ):
             raise ContextBindingError("approval does not match this session or turn")
         now = utc_time(self._clock(), "context use clock")
-        self._validate_proposal(proposal, now)
-        _request_budget(session, content, proposal.payload)
+        self._validate_proposal(proposal, now, session_locked=True)
         authorized = replace(
             proposal.payload, approval_id=approval.approval_id, _issuer=self
         )
@@ -247,7 +248,7 @@ class ConversationContextBinder:
             or provider_id != proposal.provider_id
             or request.messages
             != (
-                *proposal.session.messages,
+                *proposal.window.history,
                 ConversationMessage(ConversationRole.USER, proposal.content),
             )
             or payload.snapshot_id != proposal.payload.snapshot_id
@@ -259,7 +260,7 @@ class ConversationContextBinder:
         ):
             raise ContextBindingError("context payload or destination was substituted")
         now = utc_time(self._clock(), "context execution clock")
-        self._validate_proposal(proposal, now)
+        self._validate_proposal(proposal, now, session_locked=True)
 
     def _cancel_payload(self, payload: ConversationContextPayload) -> None:
         with self._lock:
@@ -268,13 +269,22 @@ class ConversationContextBinder:
                 del self._authorized_payloads[id(payload)]
 
     def _validate_proposal(
-        self, proposal: ContextDisclosureProposal, now: datetime
+        self,
+        proposal: ContextDisclosureProposal,
+        now: datetime,
+        *,
+        session_locked: bool = False,
     ) -> None:
         session = proposal.session
         if (
             session.session_id != proposal.session_id
             or session.generation != proposal.session_generation
+            or session.revision != proposal.session_revision
             or session.completed_turns != proposal.turn_index
+            or session.continuity_enabled != proposal.window.continuity_enabled
+            or proposal.window.session_id != proposal.session_id
+            or proposal.window.generation != proposal.session_generation
+            or proposal.window.revision != proposal.session_revision
             or session.provider_id != proposal.provider_id
             or session.model_id != proposal.model_id
         ):
@@ -293,7 +303,13 @@ class ConversationContextBinder:
             or proposal.payload != _payload(proposal.snapshot)
         ):
             raise ContextBindingError("approved snapshot content was substituted")
-        _request_budget(session, proposal.content, proposal.payload)
+        current_window = (
+            session._prepare_window_unlocked(proposal.content, proposal.payload)
+            if session_locked
+            else session.prepare_window(proposal.content, proposal.payload)
+        )
+        if current_window != proposal.window:
+            raise ContextBindingError("approved history window changed")
 
 
 def _eligible_snapshot(
@@ -368,7 +384,9 @@ def _proposal_seal(proposal: ContextDisclosureProposal) -> tuple[object, ...]:
         proposal.model_id,
         proposal.session_id,
         proposal.session_generation,
+        proposal.session_revision,
         proposal.turn_index,
+        _window_seal(proposal.window),
         proposal.item_ids,
         _scope_values(proposal.scopes),
         proposal.payload.snapshot_id,
@@ -390,6 +408,19 @@ def _approval_seal(approval: ContextApproval) -> tuple[object, ...]:
         approval.approved_item_ids,
         _scope_values(approval.approved_scopes),
         id(approval._issuer),
+    )
+
+
+def _window_seal(window: ConversationWindow) -> tuple[object, ...]:
+    return (
+        window.session_id,
+        window.generation,
+        window.revision,
+        window.continuity_enabled,
+        tuple((message.role, message.content) for message in window.history),
+        window.content,
+        window.context_section,
+        window.retired_turns,
     )
 
 
@@ -437,25 +468,3 @@ def _payload(snapshot: ContextSnapshot) -> ConversationContextPayload:
         section=section,
         item_ids=tuple(item.candidate_id for item in snapshot.items),
     )
-
-
-def _request_budget(
-    session: ConversationSession,
-    content: str,
-    payload: ConversationContextPayload,
-) -> None:
-    if not isinstance(content, str) or not content.strip():
-        raise ValueError("user content must be nonblank text")
-    if len(content) > MAX_USER_CHARACTERS:
-        raise ConversationLimitError("user message exceeds 2000 characters")
-    if session.completed_turns >= MAX_PREVIOUS_TURNS:
-        raise ConversationLimitError("session is full; use /reiniciar")
-    if (
-        sum(len(message.content) for message in session.messages)
-        + len(content)
-        + len(payload.section)
-        > MAX_CONTEXT_CHARACTERS
-    ):
-        raise ConversationLimitError(
-            "transmitted conversation and context exceed 6000 characters"
-        )
