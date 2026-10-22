@@ -141,6 +141,52 @@ def run_cli(h: Harness, *answers: str) -> list[str]:
     return output
 
 
+def test_diagnostic_inspection_preserves_existing_context_approval() -> None:
+    h = harness()
+    prepared = h.awareness.prepare(h.session, "¿Cómo está mi RAM?")
+    assert prepared.proposal is not None
+    proposal = prepared.proposal
+    approval = h.binder.approve(
+        proposal,
+        approved_item_ids=proposal.item_ids,
+        approved_scopes=proposal.scopes,
+    )
+    before = h.session.diagnostic_snapshot()
+    output = run_cli(h, "/diagnostico")
+    assert len(h.captures) == 1 and not h.provider.requests
+    assert h.session.diagnostic_snapshot() == before
+    assert not any(proposal.payload.section in line for line in output)
+    assert not any(approval.approval_id in line for line in output)
+    assert h.session.send(proposal.content, approval=approval).success
+    assert len(h.provider.requests) == 1
+    assert h.session.diagnostic_snapshot().active_turns == 1
+
+
+def test_stale_disclosure_after_observation_reports_no_committed_turn() -> None:
+    h = harness()
+    entries = iter(("/recursos ¿Cómo está mi RAM?", "/diagnostico", "/salir", "salir"))
+    output: list[str] = []
+
+    def answer(prompt: str) -> str:
+        if "¿Autorizas esta divulgación" in prompt:
+            h.session.reset()
+            return "sí"
+        return next(entries)
+
+    cli.main(
+        input_fn=answer,
+        output_fn=output.append,
+        chat_session=h.session,
+        system_awareness=h.awareness,
+    )
+    assert len(h.captures) == 1
+    assert not h.provider.requests
+    assert h.session.messages == ()
+    assert any("Divulgación no válida" in line for line in output)
+    assert any("no se confirmó un turno" in line for line in output)
+    assert any("Turnos activos: 0/8" in line for line in output)
+
+
 def test_structured_capability_preserves_text_and_captures_once() -> None:
     h = harness()
     tool = SystemStatusTool(
