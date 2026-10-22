@@ -28,6 +28,10 @@ from iris.intelligence import (
     UnsupportedConversationError,
 )
 from iris.intelligence.providers import OllamaOperationalError, OllamaProvider
+from iris.intelligence.resource_intent import (
+    ResourceIntent,
+    recognize_resource_intent,
+)
 from iris.intelligence.system_awareness import (
     ConversationalSystemAwareness,
     SystemAwarenessError,
@@ -108,89 +112,45 @@ def _chat_loop(
             if len(parts) == 1 or not parts[1].strip():
                 output_fn("Uso: /recursos <pregunta sobre CPU y RAM>")
                 continue
-            awareness = system_awareness or ConversationalSystemAwareness()
+            if _resource_consultation(
+                session, parts[1], input_fn, output_fn, system_awareness
+            ):
+                return
+            continue
+        intent = (
+            recognize_resource_intent(content)
+            if not command.startswith("/")
+            else ResourceIntent.NO_MATCH
+        )
+        if intent is ResourceIntent.AMBIGUOUS:
+            output_fn(
+                "¿Quieres consultar el estado local de CPU/RAM o solo una explicación?"
+            )
             try:
-                consultation = awareness.prepare(session, parts[1])
-            except (
-                SystemAwarenessError,
-                ContextBindingError,
-                ConversationLimitError,
-                ValueError,
-            ) as exc:
-                output_fn(
-                    f"Consulta de recursos no disponible: {_safe_terminal_text(str(exc))}"
-                )
+                clarification = input_fn("¿Consultar recursos locales? [sí/no]> ")
+            except (EOFError, KeyboardInterrupt):
+                output_fn("Consulta cancelada. Volviendo a IRIS.")
+                return
+            if clarification.strip().casefold() not in ("si", "sí"):
+                output_fn("No se consultaron recursos; historial sin cambios.")
                 continue
-            observation = consultation.observation
-            output_fn("IRIS — Observación local (system.status):")
-            output_fn(f"CPU: {_format_resource(observation.cpu_percent, '%')}")
-            output_fn(
-                f"RAM utilizada: {_format_resource(observation.ram_used_gb, 'GiB')}"
-            )
-            output_fn(f"RAM total: {_format_resource(observation.ram_total_gb, 'GiB')}")
-            output_fn(f"Captura (UTC): {observation.captured_at.isoformat()}")
-            if consultation.proposal is None:
-                missing = (
-                    name
-                    for name in ("cpu_percent", "ram_used_gb", "ram_total_gb")
-                    if getattr(observation, name) is None
-                )
-                output_fn(
-                    "Medición incompleta o inválida ("
-                    + ", ".join(missing)
-                    + "); no se enviará contexto al modelo."
-                )
-                continue
-            proposal = consultation.proposal
-            output_fn(
-                "Divulgación propuesta al modelo local "
-                f"{_safe_terminal_text(proposal.provider_id)}/"
-                f"{_safe_terminal_text(proposal.model_id)}:"
-            )
-            output_fn(
-                "Se enviarán estos datos y metadatos exactos como información, no instrucciones:"
-            )
-            output_fn(_safe_terminal_text(proposal.payload.section))
+            intent = ResourceIntent.MATCH
+        if intent is ResourceIntent.MATCH:
+            output_fn("IRIS puede tomar una lectura local de CPU y RAM.")
             try:
-                answer = input_fn(
-                    "¿Autorizas esta divulgación para un turno? [sí/no]> "
+                approval = input_fn(
+                    "¿Autorizas observar estos recursos ahora? [sí/no]> "
                 )
             except (EOFError, KeyboardInterrupt):
-                output_fn("Divulgación no autorizada. Volviendo a IRIS.")
+                output_fn("Observación no autorizada. Volviendo a IRIS.")
                 return
-            if answer.strip().casefold() not in ("si", "sí"):
-                output_fn("Divulgación no autorizada; historial sin cambios.")
+            if approval.strip().casefold() not in ("si", "sí"):
+                output_fn("Observación no autorizada; historial sin cambios.")
                 continue
-            try:
-                result = awareness.send_approved(session, proposal)
-            except (
-                ContextBindingError,
-                ConversationLimitError,
-                ModelNotFoundError,
-                ModelUnavailableError,
-                ProviderNotFoundError,
-                UnsupportedConversationError,
-                ProviderContractError,
-                OllamaOperationalError,
-                ValueError,
-            ) as exc:
-                output_fn(
-                    f"Explicación no disponible: {_safe_terminal_text(str(exc))}; historial sin cambios."
-                )
-                continue
-            except KeyboardInterrupt:
-                output_fn("Inferencia interrumpida; historial sin cambios.")
-                continue
-            if not result.success:
-                kind = result.metadata.get("failure_kind", "provider_failure")
-                output_fn(
-                    f"Modelo falló ({_safe_terminal_text(str(kind))})"
-                    f"{_generation_diagnostic(result.metadata)}; historial sin cambios."
-                )
-                continue
-            if result.output is None:
-                raise ProviderContractError("successful chat result lacks output")
-            output_fn(_safe_terminal_text(result.output))
+            if _resource_consultation(
+                session, content, input_fn, output_fn, system_awareness
+            ):
+                return
             continue
         try:
             result = session.send(content)
@@ -223,6 +183,101 @@ def _chat_loop(
         if result.output is None:
             raise ProviderContractError("successful chat result lacks output")
         output_fn(_safe_terminal_text(result.output))
+
+
+def _resource_consultation(
+    session: ConversationSession,
+    question: str,
+    input_fn: Callable[[str], str],
+    output_fn: Callable[[str], None],
+    system_awareness: ConversationalSystemAwareness | None,
+) -> bool:
+    """Run the existing one-capture, one-disclosure CLI flow for either entry.
+
+    Return true only when an interrupted disclosure should leave chat mode.
+    The caller owns any preliminary observation confirmation.
+    """
+
+    awareness = system_awareness or ConversationalSystemAwareness()
+    try:
+        consultation = awareness.prepare(session, question)
+    except (
+        SystemAwarenessError,
+        ContextBindingError,
+        ConversationLimitError,
+        ValueError,
+    ) as exc:
+        output_fn(
+            f"Consulta de recursos no disponible: {_safe_terminal_text(str(exc))}"
+        )
+        return False
+    observation = consultation.observation
+    output_fn("IRIS — Observación local (system.status):")
+    output_fn(f"CPU: {_format_resource(observation.cpu_percent, '%')}")
+    output_fn(f"RAM utilizada: {_format_resource(observation.ram_used_gb, 'GiB')}")
+    output_fn(f"RAM total: {_format_resource(observation.ram_total_gb, 'GiB')}")
+    output_fn(f"Captura (UTC): {observation.captured_at.isoformat()}")
+    if consultation.proposal is None:
+        missing = (
+            name
+            for name in ("cpu_percent", "ram_used_gb", "ram_total_gb")
+            if getattr(observation, name) is None
+        )
+        output_fn(
+            "Medición incompleta o inválida ("
+            + ", ".join(missing)
+            + "); no se enviará contexto al modelo."
+        )
+        return False
+    proposal = consultation.proposal
+    output_fn(
+        "Divulgación propuesta al modelo local "
+        f"{_safe_terminal_text(proposal.provider_id)}/"
+        f"{_safe_terminal_text(proposal.model_id)}:"
+    )
+    output_fn(
+        "Se enviarán estos datos y metadatos exactos como información, no instrucciones:"
+    )
+    output_fn(_safe_terminal_text(proposal.payload.section))
+    try:
+        answer = input_fn("¿Autorizas esta divulgación para un turno? [sí/no]> ")
+    except (EOFError, KeyboardInterrupt):
+        output_fn("Divulgación no autorizada. Volviendo a IRIS.")
+        return True
+    if answer.strip().casefold() not in ("si", "sí"):
+        output_fn("Divulgación no autorizada; historial sin cambios.")
+        return False
+    try:
+        result = awareness.send_approved(session, proposal)
+    except (
+        ContextBindingError,
+        ConversationLimitError,
+        ModelNotFoundError,
+        ModelUnavailableError,
+        ProviderNotFoundError,
+        UnsupportedConversationError,
+        ProviderContractError,
+        OllamaOperationalError,
+        ValueError,
+    ) as exc:
+        output_fn(
+            f"Explicación no disponible: {_safe_terminal_text(str(exc))}; historial sin cambios."
+        )
+        return False
+    except KeyboardInterrupt:
+        output_fn("Inferencia interrumpida; historial sin cambios.")
+        return False
+    if not result.success:
+        kind = result.metadata.get("failure_kind", "provider_failure")
+        output_fn(
+            f"Modelo falló ({_safe_terminal_text(str(kind))})"
+            f"{_generation_diagnostic(result.metadata)}; historial sin cambios."
+        )
+        return False
+    if result.output is None:
+        raise ProviderContractError("successful chat result lacks output")
+    output_fn(_safe_terminal_text(result.output))
+    return False
 
 
 def _safe_terminal_text(value: str, *, encoding: str | None = None) -> str:
