@@ -157,6 +157,20 @@ class ConversationBusyError(RuntimeError):
     """Another turn or reset is already active for this session."""
 
 
+@dataclass(frozen=True, slots=True)
+class ConversationWindow:
+    """Immutable inference candidate, not a committed conversation state."""
+
+    session_id: str
+    generation: int
+    revision: int
+    continuity_enabled: bool
+    history: tuple[ConversationMessage, ...]
+    content: str
+    context_section: str | None
+    retired_turns: int
+
+
 class ConversationSession:
     """Commit complete pairs only after a validated provider response."""
 
@@ -178,6 +192,9 @@ class ConversationSession:
         )
         self._messages: tuple[ConversationMessage, ...] = ()
         self._generation = 0
+        self._revision = 0
+        self._continuity_enabled = False
+        self._last_commit_evictions = 0
         self._lock = Lock()
 
     @property
@@ -194,12 +211,119 @@ class ConversationSession:
 
         return self._generation
 
+    @property
+    def revision(self) -> int:
+        """Monotonic identity of confirmed session state and policy."""
+
+        return self._revision
+
+    @property
+    def continuity_enabled(self) -> bool:
+        return self._continuity_enabled
+
+    @property
+    def last_commit_evictions(self) -> int:
+        return self._last_commit_evictions
+
+    def set_continuity(self, enabled: bool) -> None:
+        if not isinstance(enabled, bool):
+            raise TypeError("continuity policy must be boolean")
+        if not self._lock.acquire(blocking=False):
+            raise ConversationBusyError("conversation is busy")
+        try:
+            if self._continuity_enabled != enabled:
+                self._continuity_enabled = enabled
+                self._revision += 1
+        finally:
+            self._lock.release()
+
+    def prepare_window(
+        self, content: str, context: ConversationContextPayload | None = None
+    ) -> ConversationWindow:
+        """Select the longest valid recent suffix without changing history."""
+
+        if not self._lock.acquire(blocking=False):
+            raise ConversationBusyError("conversation is busy")
+        try:
+            return self._prepare_window_unlocked(content, context)
+        finally:
+            self._lock.release()
+
+    def can_rollover(
+        self, content: str, context: ConversationContextPayload | None = None
+    ) -> bool:
+        """Test a hypothetical enabled policy without authorizing or changing it."""
+
+        if not self._lock.acquire(blocking=False):
+            raise ConversationBusyError("conversation is busy")
+        try:
+            if self._continuity_enabled:
+                return False
+            try:
+                candidate = self._prepare_window_unlocked(
+                    content, context, enabled=True
+                )
+            except ConversationLimitError:
+                return False
+            return (
+                candidate.retired_turns > 0
+                or self.completed_turns >= MAX_PREVIOUS_TURNS
+            )
+        finally:
+            self._lock.release()
+
+    def _prepare_window_unlocked(
+        self,
+        content: str,
+        context: ConversationContextPayload | None = None,
+        *,
+        enabled: bool | None = None,
+    ) -> ConversationWindow:
+        if not isinstance(content, str):
+            raise TypeError("user content must be a string")
+        if len(content) > MAX_USER_CHARACTERS:
+            raise ConversationLimitError("user message exceeds 2000 characters")
+        user_message = ConversationMessage(ConversationRole.USER, content)
+        if context is not None and not isinstance(context, ConversationContextPayload):
+            raise TypeError("context must be a ConversationContextPayload")
+        rolling = self._continuity_enabled if enabled is None else enabled
+        history = self._messages
+        retired = 0
+        while True:
+            if not rolling and len(history) // 2 >= MAX_PREVIOUS_TURNS:
+                raise ConversationLimitError("session is full; use /reiniciar")
+            try:
+                ConversationRequest(
+                    model_id=self.model_id,
+                    messages=(*history, user_message),
+                    context=context,
+                )
+            except ConversationLimitError:
+                if not rolling or not history:
+                    raise
+                history = history[2:]
+                retired += 1
+                continue
+            return ConversationWindow(
+                session_id=self.session_id,
+                generation=self._generation,
+                revision=self._revision,
+                continuity_enabled=rolling,
+                history=history,
+                content=content,
+                context_section=None if context is None else context.section,
+                retired_turns=retired,
+            )
+
     def reset(self) -> None:
         if not self._lock.acquire(blocking=False):
             raise ConversationBusyError("conversation is busy")
         try:
             self._messages = ()
             self._generation += 1
+            self._revision += 1
+            self._continuity_enabled = False
+            self._last_commit_evictions = 0
         finally:
             self._lock.release()
 
@@ -219,19 +343,11 @@ class ConversationSession:
                 if not isinstance(approval, ContextApproval):
                     raise TypeError("approval must be a ContextApproval")
                 context = approval._consume(self, content)
-            if not isinstance(content, str):
-                raise TypeError("user content must be a string")
-            if len(content) > MAX_USER_CHARACTERS:
-                raise ConversationLimitError("user message exceeds 2000 characters")
+            window = self._prepare_window_unlocked(content, context)
             user_message = ConversationMessage(ConversationRole.USER, content)
-            if self.completed_turns >= MAX_PREVIOUS_TURNS:
-                raise ConversationLimitError("session is full; use /reiniciar")
-            used = sum(len(message.content) for message in self._messages)
-            if used + len(content) > MAX_CONTEXT_CHARACTERS:
-                raise ConversationLimitError("conversation exceeds 6000 characters")
             request = ConversationRequest(
                 model_id=self.model_id,
-                messages=(*self._messages, user_message),
+                messages=(*window.history, user_message),
                 context=context,
             )
             result = self._runtime.chat(self.provider_id, request)
@@ -242,14 +358,23 @@ class ConversationSession:
             assistant_message = ConversationMessage(
                 ConversationRole.ASSISTANT, result.output
             )
-            if (
-                used + len(content) + len(assistant_message.content)
+            retained = window.history
+            while (
+                len(retained) // 2 + 1 > MAX_PREVIOUS_TURNS
+                or sum(len(message.content) for message in retained)
+                + len(content)
+                + len(assistant_message.content)
                 > MAX_CONTEXT_CHARACTERS
             ):
-                raise ConversationLimitError(
-                    "assistant response exceeds the 6000-character session limit"
-                )
-            self._messages = (*self._messages, user_message, assistant_message)
+                if not self._continuity_enabled or not retained:
+                    raise ConversationLimitError(
+                        "assistant response exceeds the 6000-character session limit"
+                    )
+                retained = retained[2:]
+            previous_turns = self.completed_turns
+            self._messages = (*retained, user_message, assistant_message)
+            self._last_commit_evictions = previous_turns - len(retained) // 2
+            self._revision += 1
             return result
         finally:
             if context is not None:

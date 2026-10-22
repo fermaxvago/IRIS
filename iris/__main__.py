@@ -106,6 +106,27 @@ def _chat_loop(
         if command == "/reiniciar":
             session.reset()
             output_fn("Conversación temporal reiniciada.")
+            output_fn("Continuidad desactivada.")
+            continue
+        if command == "/continuidad estado":
+            state = "activada" if session.continuity_enabled else "desactivada"
+            output_fn(f"Continuidad {state}; {session.completed_turns} turnos activos.")
+            continue
+        if command == "/continuidad activar":
+            session.set_continuity(True)
+            output_fn(
+                "Continuidad activada. Los turnos antiguos podrán retirarse del "
+                "contexto activo tras una respuesta válida; no se resumirán ni conservarán."
+            )
+            continue
+        if command == "/continuidad desactivar":
+            session.set_continuity(False)
+            output_fn(
+                "Continuidad desactivada. Los turnos ya retirados no se recuperan."
+            )
+            continue
+        if command == "/continuidad" or command.startswith("/continuidad "):
+            output_fn("Uso: /continuidad estado|activar|desactivar")
             continue
         parts = command.split(maxsplit=1)
         if parts and parts[0] == "/recursos":
@@ -153,6 +174,8 @@ def _chat_loop(
                 return
             continue
         try:
+            if not _ensure_conversation_window(session, content, input_fn, output_fn):
+                continue
             result = session.send(content)
         except ConversationLimitError as exc:
             output_fn(f"Límite de chat: {exc}")
@@ -183,6 +206,7 @@ def _chat_loop(
         if result.output is None:
             raise ProviderContractError("successful chat result lacks output")
         output_fn(_safe_terminal_text(result.output))
+        _report_rollover(session, output_fn)
 
 
 def _resource_consultation(
@@ -198,6 +222,8 @@ def _resource_consultation(
     The caller owns any preliminary observation confirmation.
     """
 
+    if not _ensure_conversation_window(session, question, input_fn, output_fn):
+        return False
     awareness = system_awareness or ConversationalSystemAwareness()
     try:
         consultation = awareness.prepare(session, question)
@@ -277,7 +303,56 @@ def _resource_consultation(
     if result.output is None:
         raise ProviderContractError("successful chat result lacks output")
     output_fn(_safe_terminal_text(result.output))
+    _report_rollover(session, output_fn)
     return False
+
+
+def _ensure_conversation_window(
+    session: ConversationSession,
+    content: str,
+    input_fn: Callable[[str], str],
+    output_fn: Callable[[str], None],
+) -> bool:
+    """Offer one session-policy choice before inference or resource capture."""
+
+    try:
+        session.prepare_window(content)
+        return True
+    except ConversationLimitError as exc:
+        if not session.can_rollover(content):
+            output_fn(f"Límite de chat: {exc}")
+            return False
+        output_fn(
+            "La ventana activa está llena. Continuar retirará turnos completos "
+            "antiguos solo después de una respuesta válida; no se conservarán."
+        )
+        try:
+            answer = input_fn("¿Activar continuidad para esta sesión? [sí/no]> ")
+        except (EOFError, KeyboardInterrupt):
+            output_fn("Continuidad no autorizada; historial sin cambios.")
+            return False
+        if answer.strip().casefold() not in ("si", "sí"):
+            output_fn("Continuidad no autorizada; historial sin cambios.")
+            return False
+        session.set_continuity(True)
+        output_fn("Continuidad activada para esta sesión temporal.")
+        return True
+    except ValueError as exc:
+        output_fn(f"Mensaje inválido: {_safe_terminal_text(str(exc))}")
+        return False
+
+
+def _report_rollover(
+    session: ConversationSession, output_fn: Callable[[str], None]
+) -> None:
+    if session.last_commit_evictions:
+        count = session.last_commit_evictions
+        action = (
+            "se retiró 1 turno antiguo"
+            if count == 1
+            else f"se retiraron {count} turnos antiguos"
+        )
+        output_fn(f"Contexto actualizado: {action} de la ventana activa.")
 
 
 def _safe_terminal_text(value: str, *, encoding: str | None = None) -> str:

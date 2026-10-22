@@ -163,6 +163,29 @@ models, start inference, authorize tools, or choose a fallback. `--model` and
 `--select` are mutually exclusive.
 
 The chat uses the loopback Ollama endpoint and sends no tool definitions.
+Temporary conversation continuity is disabled by default. Within chat,
+`/continuidad estado` shows the policy and active turn count;
+`/continuidad activar` explicitly permits a rolling window for this session;
+`/continuidad desactivar` prevents future rollovers. When a request reaches a
+limit that a bounded rollover can resolve, IRIS may offer this choice once
+before inference or a resource reading. A declined offer leaves confirmed
+history unchanged. `/reiniciar` clears history and disables continuity again.
+No policy or transcript is saved across sessions.
+
+With continuity enabled, a session can complete more than eight exchanges over
+its lifetime while retaining at most eight complete exchanges in active
+history. IRIS first prepares an immutable candidate inference window, dropping
+the fewest oldest complete pairs needed to fit the request; confirmed history
+does not change before inference. After a valid response, it may drop further
+old pairs to fit the complete answer and then atomically commits the final
+window. It reports how many turns were retired only after that commit. Failed
+inference or an answer that cannot fit even alone leaves confirmed history
+unchanged. Removed exchanges are neither summarized nor recoverable from the
+session; no hidden archive or persistent memory is introduced. Existing
+2,000-character user, 6,000-character active/transmitted, eight-turn active,
+256-output-token, and contextual limits remain unchanged. Continuity permission
+never authorizes observation, context disclosure, model switching or tools.
+
 Inside either chat mode, `/recursos <pregunta>` takes one fresh local
 `system.status` reading for CPU utilization and used/total RAM in GiB. A bare
 `/recursos` shows usage and takes no reading. IRIS displays the measurements,
@@ -196,9 +219,10 @@ or permission to act on model output.
 commands, is conversation text and cannot dispatch capabilities. The session
 retains at most eight completed turns, accepts at most 2,000 characters per user
 message and 6,000 aggregate message characters, and requests at most 256 output
-tokens. Reaching a limit rejects the turn without discarding history; reset is
-explicit. These are character/request limits, not an exact tokenizer or model
-context-window guarantee. No transcript is persisted, and chat responses do
+tokens. With continuity disabled, reaching a limit rejects the turn without
+discarding history; reset is explicit. These are character/request limits, not
+an exact tokenizer or model context-window guarantee. No transcript is
+persisted, and chat responses do
 not authorize execution.
 
 Programmatic contextual turns can use `ConversationContextBinder` with an
