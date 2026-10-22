@@ -175,6 +175,22 @@ context. The textual `estado` command and ordinary chat are unchanged.
 `/recursos` is not monitoring or a resource-pressure diagnosis; the model only
 explains a point-in-time reading and cannot modify the system.
 
+In chat mode, IRIS also recognizes a deliberately small set of direct Spanish
+requests such as «¿Cuánta RAM estoy usando?», «Muéstrame el uso de CPU» and
+«IRIS, revisa mis recursos». Before taking any local reading it asks separately
+whether you authorize observing CPU/RAM. Only `si` or `sí` permits that one
+observation. If a complete reading can become context, IRIS then shows the
+existing exact disclosure preview and asks for a second, independent approval
+before sending it to the selected model. Declining either step leaves the
+conversation unchanged, and a new request needs new approvals. The explicit
+`/recursos <pregunta>` command remains available and proceeds directly to its
+existing reading and disclosure flow, without the new preliminary prompt.
+Ambiguous wording may receive one clarification; unsupported, hypothetical,
+quoted, educational, third-party or resource-modification requests continue as
+ordinary chat rather than initiating a capability. This is conservative pattern
+recognition, not general natural-language understanding, autonomous execution,
+or permission to act on model output.
+
 `/reiniciar` clears the temporary transcript; `/salir` returns to the legacy
 `IRIS>` command prompt. Other input, including `estado` and unknown slash
 commands, is conversation text and cannot dispatch capabilities. The session
