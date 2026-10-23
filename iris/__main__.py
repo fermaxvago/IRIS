@@ -173,6 +173,27 @@ def _chat_loop(
             if not command.startswith("/")
             else ResourceIntent.NO_MATCH
         )
+        if intent is ResourceIntent.CLARIFY_LOCAL_RESOURCE:
+            output_fn(
+                "Puedo consultar el uso actual de CPU y RAM de este equipo. "
+                "Si eso es lo que necesitas, escribe una petición específica, "
+                'por ejemplo: "Consulta cuánta RAM estoy usando".'
+            )
+            try:
+                clarification = input_fn("Pregunta específica sobre CPU/RAM> ")
+            except (EOFError, KeyboardInterrupt):
+                output_fn("Aclaración cancelada. Volviendo a IRIS.")
+                return
+            if clarification.strip().startswith("/") or (
+                recognize_resource_intent(clarification) is not ResourceIntent.MATCH
+            ):
+                output_fn(
+                    "Aclaración cancelada; no se observaron recursos "
+                    "ni se modificó el historial."
+                )
+                continue
+            content = clarification
+            intent = ResourceIntent.MATCH
         if intent is ResourceIntent.AMBIGUOUS:
             output_fn(
                 "¿Quieres consultar el estado local de CPU/RAM o solo una explicación?"

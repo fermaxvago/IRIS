@@ -224,6 +224,14 @@ ordinary chat rather than initiating a capability. This is conservative pattern
 recognition, not general natural-language understanding, autonomous execution,
 or permission to act on model output.
 
+An incomplete request such as «Revisa mi computadora» or «¿Puedes revisar mi
+equipo?» receives one prompt asking for a specific CPU/RAM question. Only a new,
+independently complete request (for example, «Consulta cuánta RAM estoy usando»)
+can proceed to the existing observation consent and separate disclosure consent.
+«Sí» alone, another incomplete request, an unsupported action or a slash command
+at this prompt cancels the clarification without reading resources or changing
+the conversation. This does not diagnose the computer or authorize other tools.
+
 `/reiniciar` clears the temporary transcript; `/salir` returns to the legacy
 `IRIS>` command prompt. Other input, including `estado` and unknown slash
 commands, is conversation text and cannot dispatch capabilities. The session

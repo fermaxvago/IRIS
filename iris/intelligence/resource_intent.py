@@ -14,6 +14,7 @@ from enum import StrEnum
 class ResourceIntent(StrEnum):
     MATCH = "match"
     AMBIGUOUS = "ambiguous"
+    CLARIFY_LOCAL_RESOURCE = "clarify_local_resource"
     NO_MATCH = "no_match"
 
 
@@ -109,6 +110,16 @@ _HYPOTHETICAL_WORDS = frozenset(
 )
 _EDUCATIONAL_PHRASES = ("que es", "para que sirve", "que significa", "definicion de")
 _QUOTE_CHARACTERS = frozenset("\"'`“”«»‘’")
+_INCOMPLETE_LOCAL_INSPECTIONS = frozenset(
+    {
+        "revisa mi computadora",
+        "revisa mi equipo",
+        "puedes revisar mi computadora",
+        "puedes revisar mi equipo",
+        "podrias revisar mi computadora",
+        "podrias revisar mi equipo",
+    }
+)
 
 
 def recognize_resource_intent(message: str) -> ResourceIntent:
@@ -143,8 +154,7 @@ def recognize_resource_intent(message: str) -> ResourceIntent:
     # Do not extract the read-only clause of an otherwise compound request.
     remainder = text.replace("cpu y ram", "").replace("ram y cpu", "")
     if (
-        not resource
-        or word_set
+        word_set
         & (
             _MODIFICATION_WORDS
             | _FOREIGN_DEVICE_WORDS
@@ -154,6 +164,11 @@ def recognize_resource_intent(message: str) -> ResourceIntent:
         or foreign_possessive
         or " y " in f" {remainder} "
     ):
+        return ResourceIntent.NO_MATCH
+    if not resource:
+        local_request = text.removeprefix("iris ")
+        if local_request in _INCOMPLETE_LOCAL_INSPECTIONS:
+            return ResourceIntent.CLARIFY_LOCAL_RESOURCE
         return ResourceIntent.NO_MATCH
     observation = bool(word_set & _OBSERVATION_VERBS)
     explanation = bool(
