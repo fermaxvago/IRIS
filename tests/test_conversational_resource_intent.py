@@ -58,7 +58,6 @@ def test_recognizes_only_bounded_affirmative_requests(message: str) -> None:
         "¿Cuánta memoria necesita otro dispositivo?",
         "Libera la RAM y cierra procesos",
         "Revisa mi RAM y cierra procesos",
-        "¿Puedes revisar mi computadora?",
         "Revisa la RAM de Ana",
         "Muéstrame CPU de un servidor",
         "Revisa mi RAM y envía un reporte",
@@ -70,6 +69,41 @@ def test_recognizes_only_bounded_affirmative_requests(message: str) -> None:
     ],
 )
 def test_exclusions_abstain(message: str) -> None:
+    assert recognize_resource_intent(message) is ResourceIntent.NO_MATCH
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Revisa mi computadora",
+        "¿Puedes revisar mi computadora?",
+        "Revisa mi equipo",
+        "¿Puedes revisar mi equipo?",
+        "  IRIS,  ¿PODRÍAS revisar mi EQUIPO?  ",
+    ],
+)
+def test_incomplete_local_inspection_requires_clarification(message: str) -> None:
+    assert recognize_resource_intent(message) is ResourceIntent.CLARIFY_LOCAL_RESOURCE
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Mi computadora está lenta",
+        "No revises mi computadora",
+        "¿Qué pasaría si revisaras mi computadora?",
+        'Mi profesor dijo: "revisa tu computadora"',
+        "Revisa la computadora de mi profesor",
+        "Revisa mi servidor",
+        "Revisa mi computadora y cierra procesos",
+        "Revisa mi computadora y elimina archivos",
+        "Haz lo que consideres mejor",
+        "computadora",
+        "¿Puedes revisar mi computadora y mi RAM?",
+        "¿Qué es mi computadora?",
+    ],
+)
+def test_incomplete_inspection_exclusions(message: str) -> None:
     assert recognize_resource_intent(message) is ResourceIntent.NO_MATCH
 
 
@@ -243,6 +277,152 @@ def test_ambiguous_without_resolution_has_no_effect(clarification: str) -> None:
     assert not h.captures and h.session.messages == ()
     assert not any("observar" in prompt for prompt in prompts)
     assert not h.provider.contextual
+
+
+@pytest.mark.parametrize(
+    "clarification",
+    [
+        "sí",
+        "si",
+        "adelante",
+        "hazlo",
+        "",
+        "Revisa mi equipo",
+        "Revisa mi RAM y cierra procesos",
+        "Revisa la RAM de Ana",
+        "/salir",
+        "/reiniciar",
+        "/diagnostico",
+        "/continuidad activar",
+        "/recursos Revisa mi RAM",
+    ],
+)
+def test_incomplete_clarification_rejects_non_request_without_effect(
+    clarification: str,
+) -> None:
+    h = harness()
+    before = h.session.diagnostic_snapshot()
+    output, prompts = drive(h, "Revisa mi computadora", clarification)
+    assert sum("Pregunta específica" in prompt for prompt in prompts) == 1
+    assert not any("observar" in prompt for prompt in prompts)
+    assert not h.captures and not h.provider.ordinary and not h.provider.contextual
+    assert h.session.diagnostic_snapshot() == before
+    assert h.session.messages == ()
+    assert any("Aclaración cancelada" in line for line in output)
+
+
+@pytest.mark.parametrize("failure", [EOFError(), KeyboardInterrupt()])
+def test_interrupted_incomplete_clarification_fails_closed(
+    failure: BaseException,
+) -> None:
+    h = harness()
+    output: list[str] = []
+    before = h.session.diagnostic_snapshot()
+    pending = iter(("Revisa mi computadora",))
+
+    def receive(prompt: str) -> str:
+        if "Pregunta específica" in prompt:
+            raise failure
+        try:
+            return next(pending)
+        except StopIteration as exc:
+            raise EOFError from exc
+
+    cli.main(
+        input_fn=receive,
+        output_fn=output.append,
+        chat_session=h.session,
+        system_awareness=h.awareness,
+    )
+    assert not h.captures and not h.provider.ordinary and not h.provider.contextual
+    assert h.session.diagnostic_snapshot() == before
+    assert any("Aclaración cancelada" in line for line in output)
+
+
+def test_complete_clarification_uses_exact_question_and_separate_approvals() -> None:
+    h = harness()
+    question = "  Consulta cuánta RAM estoy usando  "
+    assert recognize_resource_intent(question) is ResourceIntent.MATCH
+    output, prompts = drive(h, "Revisa mi computadora", question, "sí", "sí")
+    assert len(h.captures) == 1 and len(h.provider.contextual) == 1
+    request = h.provider.contextual[0]
+    assert request.messages[-1].content == question
+    assert h.session.messages[0].content == question
+    assert all(
+        "Revisa mi computadora" not in item.content for item in h.session.messages
+    )
+    assert request.context is not None
+    assert request.context.section in output
+    assert sum("Pregunta específica" in prompt for prompt in prompts) == 1
+    assert sum("observar" in prompt for prompt in prompts) == 1
+    assert sum("divulgación" in prompt for prompt in prompts) == 1
+    assert h.session.completed_turns == 1
+
+
+def test_clarification_and_observation_consent_precede_all_effects() -> None:
+    h = harness()
+    before = h.session.diagnostic_snapshot()
+    answers = iter(
+        ("Revisa mi computadora", "Revisa mi RAM", "sí", "no", "/salir", "salir")
+    )
+    output: list[str] = []
+
+    def receive(prompt: str) -> str:
+        if "Pregunta específica" in prompt or "observar" in prompt:
+            assert not h.captures
+            assert not h.provider.ordinary and not h.provider.contextual
+            assert h.session.diagnostic_snapshot() == before
+        if "divulgación" in prompt:
+            assert len(h.captures) == 1
+            assert not h.provider.ordinary and not h.provider.contextual
+            assert h.session.diagnostic_snapshot() == before
+        return next(answers)
+
+    cli.main(
+        input_fn=receive,
+        output_fn=output.append,
+        chat_session=h.session,
+        system_awareness=h.awareness,
+    )
+    assert len(h.captures) == 1 and not h.provider.contextual
+    assert h.session.diagnostic_snapshot() == before
+
+
+def test_complete_clarification_denied_observation_does_not_capture() -> None:
+    h = harness()
+    output, _ = drive(h, "Revisa mi equipo", "Revisa mi RAM", "no")
+    assert not h.captures and not h.provider.contextual
+    assert h.session.messages == ()
+    assert any("Observación no autorizada" in line for line in output)
+
+
+def test_complete_clarification_denied_disclosure_remains_local_only() -> None:
+    h = harness()
+    output, _ = drive(h, "Revisa mi equipo", "Revisa mi RAM", "sí", "no")
+    assert len(h.captures) == 1 and not h.provider.contextual
+    assert h.session.messages == ()
+    assert any("Divulgación no autorizada" in line for line in output)
+
+
+def test_complete_clarification_provider_failure_preserves_history() -> None:
+    h = harness()
+    h.provider.fail = True
+    output, _ = drive(h, "Revisa mi equipo", "Revisa mi RAM", "sí", "sí")
+    assert len(h.captures) == 1 and len(h.provider.contextual) == 1
+    assert h.session.messages == ()
+    assert any("historial sin cambios" in line for line in output)
+
+
+def test_incomplete_clarification_full_session_denied_rollover_has_no_capture() -> None:
+    h = harness()
+    for index in range(8):
+        h.session.send(f"turno {index}")
+    before = h.session.messages
+    output, prompts = drive(h, "Revisa mi equipo", "Revisa mi RAM", "sí", "no")
+    assert not h.captures and not h.provider.contextual
+    assert h.session.messages is before
+    assert any("Activar continuidad" in prompt for prompt in prompts)
+    assert any("Continuidad no autorizada" in line for line in output)
 
 
 def test_natural_path_uses_one_capture_exact_preview_and_original_question() -> None:
