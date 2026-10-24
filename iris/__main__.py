@@ -6,7 +6,10 @@ import argparse
 import sys
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
+from time import monotonic
 
+from iris.capabilities import CapabilityRuntime
 from iris.core.request import Request
 from iris.dispatch import CommandDispatcher, Dispatcher
 from iris.intelligence import (
@@ -31,6 +34,11 @@ from iris.intelligence import (
     UnsupportedConversationError,
 )
 from iris.intelligence.providers import OllamaOperationalError, OllamaProvider
+from iris.intelligence.resource_comparison import (
+    LocalResourceComparison,
+    ResourceComparisonError,
+    ResourceDelta,
+)
 from iris.intelligence.resource_intent import (
     ResourceIntent,
     recognize_resource_intent,
@@ -52,6 +60,9 @@ def main(
     dispatcher: Dispatcher | None = None,
     chat_session: ConversationSession | None = None,
     system_awareness: ConversationalSystemAwareness | None = None,
+    comparison_runtime: CapabilityRuntime | None = None,
+    comparison_monotonic_clock: Callable[[], float] = monotonic,
+    comparison_utc_clock: Callable[[], datetime] | None = None,
 ) -> None:
     """Run the minimal interactive CLI.
 
@@ -68,7 +79,15 @@ def main(
     output_fn("Escribe 'estado', 'ayuda' o 'salir'.")
 
     if chat_session is not None:
-        _chat_loop(chat_session, input_fn, output_fn, system_awareness)
+        _chat_loop(
+            chat_session,
+            input_fn,
+            output_fn,
+            system_awareness,
+            comparison_runtime=comparison_runtime,
+            comparison_monotonic_clock=comparison_monotonic_clock,
+            comparison_utc_clock=comparison_utc_clock,
+        )
 
     while True:
         try:
@@ -91,6 +110,29 @@ def _chat_loop(
     input_fn: Callable[[str], str],
     output_fn: Callable[[str], None],
     system_awareness: ConversationalSystemAwareness | None = None,
+    *,
+    comparison_runtime: CapabilityRuntime | None = None,
+    comparison_monotonic_clock: Callable[[], float] = monotonic,
+    comparison_utc_clock: Callable[[], datetime] | None = None,
+) -> None:
+    comparison = LocalResourceComparison(
+        session,
+        capability_runtime=comparison_runtime,
+        monotonic_clock=comparison_monotonic_clock,
+        utc_clock=comparison_utc_clock,
+    )
+    try:
+        _chat_loop_active(session, input_fn, output_fn, system_awareness, comparison)
+    finally:
+        comparison.cancel()
+
+
+def _chat_loop_active(
+    session: ConversationSession,
+    input_fn: Callable[[str], str],
+    output_fn: Callable[[str], None],
+    system_awareness: ConversationalSystemAwareness | None,
+    comparison: LocalResourceComparison,
 ) -> None:
     output_fn(
         f"Chat local: {session.provider_id}/{session.model_id}. "
@@ -135,6 +177,7 @@ def _chat_loop(
             continue
         if command == "/reiniciar":
             session.reset()
+            comparison.cancel()
             output_fn("Conversación temporal reiniciada.")
             output_fn("Continuidad desactivada.")
             continue
@@ -159,6 +202,10 @@ def _chat_loop(
             output_fn("Uso: /continuidad estado|activar|desactivar")
             continue
         parts = command.split(maxsplit=1)
+        if parts and parts[0] == "/comparar":
+            if _comparison_command(command, comparison, input_fn, output_fn):
+                return
+            continue
         if parts and parts[0] == "/recursos":
             if len(parts) == 1 or not parts[1].strip():
                 output_fn("Uso: /recursos <pregunta sobre CPU y RAM>")
@@ -258,6 +305,98 @@ def _chat_loop(
             raise ProviderContractError("successful chat result lacks output")
         output_fn(_safe_terminal_text(result.output))
         _report_rollover(session, output_fn)
+
+
+def _comparison_command(
+    command: str,
+    comparison: LocalResourceComparison,
+    input_fn: Callable[[str], str],
+    output_fn: Callable[[str], None],
+) -> bool:
+    """Handle only explicit local comparisons; true means leave chat mode."""
+
+    if command == "/comparar estado":
+        try:
+            active = comparison.status()
+        except ResourceComparisonError as exc:
+            output_fn(f"Base no disponible: {_safe_terminal_text(str(exc))}.")
+            return False
+        output_fn("Base temporal activa." if active else "No hay base temporal válida.")
+        return False
+    if command == "/comparar cancelar":
+        comparison.cancel()
+        output_fn("Base temporal descartada.")
+        return False
+    if command not in ("/comparar base", "/comparar ahora"):
+        output_fn("Uso: /comparar base|ahora|estado|cancelar")
+        return False
+    try:
+        stamp = comparison.stamp()
+        if command == "/comparar ahora" and not comparison.status():
+            output_fn("No hay base temporal válida; usa /comparar base primero.")
+            return False
+    except ResourceComparisonError as exc:
+        output_fn(f"Comparación no disponible: {_safe_terminal_text(str(exc))}.")
+        return False
+    if command == "/comparar base":
+        output_fn(
+            "Se tomará una lectura local de CPU/RAM y se conservará solo en "
+            "memoria de este chat, hasta 10 minutos, para una comparación explícita. "
+            "No se enviará al modelo."
+        )
+        prompt = "¿Autorizas esta lectura y retención temporal? [sí/no]> "
+    else:
+        output_fn(
+            "Se tomará una nueva lectura local de CPU/RAM para compararla "
+            "con la base temporal. No se enviará al modelo."
+        )
+        prompt = "¿Autorizas esta segunda lectura? [sí/no]> "
+    try:
+        answer = input_fn(prompt)
+    except (EOFError, KeyboardInterrupt):
+        output_fn("Comparación no autorizada. Volviendo a IRIS.")
+        return True
+    if answer.strip().casefold() not in ("si", "sí"):
+        output_fn("Comparación no autorizada; no se tomó ninguna lectura nueva.")
+        return False
+    try:
+        if command == "/comparar base":
+            observation = comparison.establish(stamp)
+            output_fn(
+                "Base temporal guardada en memoria (system.status): "
+                f"CPU {observation.cpu_percent} %, RAM usada "
+                f"{observation.ram_used_gb} GiB / {observation.ram_total_gb} GiB; "
+                f"captura UTC {observation.captured_at.isoformat()}."
+            )
+        else:
+            delta = comparison.compare_now(stamp)
+            _show_resource_delta(delta, output_fn)
+    except ResourceComparisonError as exc:
+        output_fn(f"Comparación no disponible: {_safe_terminal_text(str(exc))}.")
+    return False
+
+
+def _show_resource_delta(
+    delta: ResourceDelta, output_fn: Callable[[str], None]
+) -> None:
+    """Render only the two readings and their arithmetic differences."""
+
+    output_fn("Comparación local de dos observaciones (system.status):")
+    output_fn(
+        f"Base UTC {delta.baseline.captured_at.isoformat()}: "
+        f"CPU {delta.baseline.cpu_percent} %, RAM usada "
+        f"{delta.baseline.ram_used_gb} GiB / {delta.baseline.ram_total_gb} GiB."
+    )
+    output_fn(
+        f"Actual UTC {delta.current.captured_at.isoformat()}: "
+        f"CPU {delta.current.cpu_percent} %, RAM usada "
+        f"{delta.current.ram_used_gb} GiB / {delta.current.ram_total_gb} GiB."
+    )
+    output_fn(
+        f"Diferencia CPU: {delta.cpu_delta_pp:+.1f} puntos porcentuales; "
+        f"RAM usada: {delta.ram_delta_gib:+.2f} GiB."
+    )
+    output_fn("Son dos mediciones puntuales; no establecen tendencia ni causa.")
 
 
 def _resource_consultation(
