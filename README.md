@@ -232,6 +232,19 @@ can proceed to the existing observation consent and separate disclosure consent.
 at this prompt cancels the clarification without reading resources or changing
 the conversation. This does not diagnose the computer or authorize other tools.
 
+For a local, two-reading comparison inside chat, use `/comparar base` to ask
+permission for one CPU/RAM reading and temporary retention in process memory.
+`/comparar estado` reports whether that single baseline remains valid;
+`/comparar ahora` asks for separate permission for one new reading and displays
+the CPU difference in percentage points and RAM-used difference in GiB.
+`/comparar cancelar` discards the baseline. An approved new `/comparar base`
+replaces it only after a complete reading. A baseline expires after less than
+ten minutes, is consumed by one successful comparison, and is discarded on
+reset or chat exit. These commands do not send readings to a model, create
+conversation turns, monitor in the background, store a history, or explain why
+the values changed. The two readings are point-in-time measurements, not a
+trend or diagnosis. `/recursos` remains a separate, consent-gated model path.
+
 `/reiniciar` clears the temporary transcript; `/salir` returns to the legacy
 `IRIS>` command prompt. Other input, including `estado` and unknown slash
 commands, is conversation text and cannot dispatch capabilities. The session
