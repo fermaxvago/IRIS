@@ -752,3 +752,224 @@ def test_interrupted_comparison_consent_does_not_capture(
     )
     assert not h.captures and not h.provider.calls
     assert h.session.messages == ()
+
+
+def test_natural_comparison_without_baseline_never_observes_or_infers() -> None:
+    h = rig()
+    before = h.session.diagnostic_snapshot()
+    output, prompts = drive(h, "¿Estoy usando más RAM que antes?")
+    assert not h.captures and not h.provider.calls
+    assert not any("segunda lectura" in prompt for prompt in prompts)
+    assert any("/comparar base" in line for line in output)
+    assert h.session.diagnostic_snapshot() == before
+
+
+@pytest.mark.parametrize("age", [599.999, 600.0])
+def test_natural_comparison_respects_existing_strict_baseline_ttl(age: float) -> None:
+    h = rig(info(), info(25.0, 11.0))
+
+    def advance_after_baseline(line: str) -> None:
+        if "Base temporal guardada" in line:
+            h.time.advance(age)
+
+    output, prompts = drive(
+        h,
+        "/comparar base",
+        "sí",
+        "¿Estoy usando más RAM que antes?",
+        "sí" if age < 600 else "/comparar estado",
+        output_fn=advance_after_baseline,
+    )
+    assert len(h.captures) == (2 if age < 600 else 1)
+    assert not h.provider.calls
+    assert sum("segunda lectura" in prompt for prompt in prompts) == (
+        1 if age < 600 else 0
+    )
+    assert any("Comparación local" in line for line in output) is (age < 600)
+
+
+@pytest.mark.parametrize("answer", ["no", "", "quizá", "adelante", "yes"])
+def test_natural_comparison_requires_fresh_second_capture_consent(
+    answer: str,
+) -> None:
+    h = rig(info())
+    output, prompts = drive(
+        h,
+        "/comparar base",
+        "sí",
+        "Dime si estoy usando más RAM que antes",
+        answer,
+        "/comparar estado",
+    )
+    assert len(h.captures) == 1 and not h.provider.calls
+    assert sum("segunda lectura" in prompt for prompt in prompts) == 1
+    assert any("Base temporal activa" in line for line in output)
+    assert h.session.messages == ()
+
+
+def test_natural_comparison_uses_wp072_and_consumes_baseline_once() -> None:
+    h = rig(info(20.0, 10.0), lambda: (h.time.advance(1), info(25.0, 11.0))[1])
+    before = h.session.diagnostic_snapshot()
+    output, prompts = drive(
+        h,
+        "/comparar base",
+        "sí",
+        "¿Aumentó mi uso de CPU respecto a la base?",
+        "sí",
+        "¿Estoy usando más RAM que antes?",
+        "/comparar estado",
+    )
+    assert len(h.captures) == 2 and not h.provider.calls
+    assert sum("segunda lectura" in prompt for prompt in prompts) == 1
+    assert any("+5.0 puntos porcentuales" in line for line in output)
+    assert any("+1.00 GiB" in line for line in output)
+    assert any("No hay base temporal válida" in line for line in output)
+    assert h.session.diagnostic_snapshot() == before
+
+
+@pytest.mark.parametrize(
+    "message,fragment",
+    [
+        ("¿Tengo más RAM que antes?", "Para comparar"),
+        ("Compara mi consumo de RAM", "Para comparar"),
+        ("Compara mi CPU con ayer", "no es compatible"),
+        ("Compara mi RAM y cierra Chrome", "no es compatible"),
+        ("Compara la RAM de mi servidor", "no es compatible"),
+        ("Revisa si uso más RAM que antes", "Para comparar"),
+    ],
+)
+def test_nonmatching_comparison_never_falls_through(
+    message: str, fragment: str
+) -> None:
+    h = rig()
+    output, prompts = drive(h, message, message)
+    assert not h.captures and not h.provider.calls
+    assert not any("Autorizas" in prompt for prompt in prompts)
+    assert sum(fragment in line for line in output) == 2
+    assert h.session.messages == ()
+
+
+def test_comparison_phrase_with_observation_verb_uses_comparison_route() -> None:
+    h = rig(info(), lambda: (h.time.advance(1), info(25.0, 11.0))[1])
+    output, prompts = drive(
+        h, "/comparar base", "sí", "Dime si estoy usando más RAM que antes", "sí"
+    )
+    assert len(h.captures) == 2 and not h.provider.calls
+    assert sum("segunda lectura" in prompt for prompt in prompts) == 1
+    assert not any("observar estos recursos" in prompt for prompt in prompts)
+    assert any("Comparación local" in line for line in output)
+
+
+def test_natural_comparison_preserves_wp072_capture_failure_and_baseline() -> None:
+    h = rig(info(), info(cpu=None))
+    output, _ = drive(
+        h,
+        "/comparar base",
+        "sí",
+        "¿Estoy usando más RAM que antes?",
+        "sí",
+        "/comparar estado",
+    )
+    assert len(h.captures) == 2 and not h.provider.calls
+    assert any("Comparación no disponible" in line for line in output)
+    assert any("Base temporal activa" in line for line in output)
+
+
+def test_natural_comparison_does_not_change_explicit_resource_consultation() -> None:
+    h = rig(info())
+    output, prompts = drive(h, "¿Cuánta RAM estoy usando?", "no")
+    assert not h.captures and not h.provider.calls
+    assert any("observar estos recursos" in prompt for prompt in prompts)
+    assert not any("segunda lectura" in prompt for prompt in prompts)
+    assert h.session.messages == ()
+    assert any("Observación no autorizada" in line for line in output)
+
+
+def test_educational_comparison_question_remains_ordinary_conversation() -> None:
+    h = rig()
+    output, prompts = drive(h, "Explícame qué significa comparar la RAM")
+    assert not h.captures
+    assert len(h.provider.calls) == 1
+    assert h.session.completed_turns == 1
+    assert not any("segunda lectura" in prompt for prompt in prompts)
+    assert not any("Para comparar" in line for line in output)
+
+
+def test_ordinary_turn_and_resource_consultation_do_not_replace_natural_baseline() -> (
+    None
+):
+    h = rig(
+        info(20.0, 10.0),
+        lambda: (h.time.advance(1), info(90.0, 20.0))[1],
+        lambda: (h.time.advance(1), info(25.0, 11.0))[1],
+    )
+    output, _ = drive(
+        h,
+        "/comparar base",
+        "sí",
+        "hola",
+        "/recursos ¿Cómo está mi RAM?",
+        "no",
+        "¿Estoy usando más RAM que antes?",
+        "sí",
+    )
+    assert len(h.captures) == 3
+    assert len(h.provider.calls) == 1  # Only the ordinary turn reaches the model.
+    assert h.session.completed_turns == 1
+    assert any("+5.0 puntos porcentuales" in line for line in output)
+    assert any("+1.00 GiB" in line for line in output)
+
+
+def test_natural_comparison_rechecks_session_after_consent() -> None:
+    h = rig(info(), info(25.0, 11.0))
+    answers = iter(
+        ("/comparar base", "sí", "¿Estoy usando más RAM que antes?", "/salir", "salir")
+    )
+    output: list[str] = []
+
+    def receive(prompt: str) -> str:
+        if "segunda lectura" in prompt:
+            h.session.reset()
+            return "sí"
+        return next(answers)
+
+    cli.main(
+        input_fn=receive,
+        output_fn=output.append,
+        chat_session=h.session,
+        comparison_runtime=h.runtime,
+        comparison_monotonic_clock=h.time.monotonic,
+        comparison_utc_clock=h.time.now,
+    )
+    assert len(h.captures) == 1 and not h.provider.calls
+    assert h.session.messages == ()
+    assert any("Comparación no disponible" in line for line in output)
+
+
+@pytest.mark.parametrize("end", [None, "interrupt"])
+def test_interrupted_natural_comparison_consent_fails_closed(end: str | None) -> None:
+    h = rig(info())
+    answers = iter(("/comparar base", "sí", "¿Estoy usando más RAM que antes?"))
+    output: list[str] = []
+
+    def receive(prompt: str) -> str:
+        if "segunda lectura" in prompt:
+            if end is None:
+                raise EOFError
+            raise KeyboardInterrupt
+        try:
+            return next(answers)
+        except StopIteration:
+            return "salir"
+
+    cli.main(
+        input_fn=receive,
+        output_fn=output.append,
+        chat_session=h.session,
+        comparison_runtime=h.runtime,
+        comparison_monotonic_clock=h.time.monotonic,
+        comparison_utc_clock=h.time.now,
+    )
+    assert len(h.captures) == 1 and not h.provider.calls
+    assert h.session.messages == ()
+    assert any("Comparación no autorizada" in line for line in output)

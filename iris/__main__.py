@@ -39,6 +39,10 @@ from iris.intelligence.resource_comparison import (
     ResourceComparisonError,
     ResourceDelta,
 )
+from iris.intelligence.resource_comparison_intent import (
+    ComparisonIntent,
+    recognize_resource_comparison_intent,
+)
 from iris.intelligence.resource_intent import (
     ResourceIntent,
     recognize_resource_intent,
@@ -215,6 +219,26 @@ def _chat_loop_active(
             ):
                 return
             continue
+        if not command.startswith("/"):
+            comparison_intent = recognize_resource_comparison_intent(content)
+            if comparison_intent is ComparisonIntent.MATCH:
+                if _compare_now(comparison, input_fn, output_fn):
+                    return
+                continue
+            if comparison_intent is ComparisonIntent.CLARIFY:
+                output_fn(
+                    "Para comparar, pide explícitamente el uso actual de CPU o RAM "
+                    "respecto a la base temporal; por ejemplo: "
+                    '"¿Estoy usando más RAM que antes?". '
+                    "Necesitas una base creada con /comparar base."
+                )
+                continue
+            if comparison_intent is ComparisonIntent.REJECT:
+                output_fn(
+                    "Esa comparación no es compatible con la base local de CPU/RAM. "
+                    "Solo puedo comparar dos lecturas puntuales autorizadas de este chat."
+                )
+                continue
         intent = (
             recognize_resource_intent(content)
             if not command.startswith("/")
@@ -330,27 +354,19 @@ def _comparison_command(
     if command not in ("/comparar base", "/comparar ahora"):
         output_fn("Uso: /comparar base|ahora|estado|cancelar")
         return False
+    if command == "/comparar ahora":
+        return _compare_now(comparison, input_fn, output_fn)
     try:
         stamp = comparison.stamp()
-        if command == "/comparar ahora" and not comparison.status():
-            output_fn("No hay base temporal válida; usa /comparar base primero.")
-            return False
     except ResourceComparisonError as exc:
         output_fn(f"Comparación no disponible: {_safe_terminal_text(str(exc))}.")
         return False
-    if command == "/comparar base":
-        output_fn(
-            "Se tomará una lectura local de CPU/RAM y se conservará solo en "
-            "memoria de este chat, hasta 10 minutos, para una comparación explícita. "
-            "No se enviará al modelo."
-        )
-        prompt = "¿Autorizas esta lectura y retención temporal? [sí/no]> "
-    else:
-        output_fn(
-            "Se tomará una nueva lectura local de CPU/RAM para compararla "
-            "con la base temporal. No se enviará al modelo."
-        )
-        prompt = "¿Autorizas esta segunda lectura? [sí/no]> "
+    output_fn(
+        "Se tomará una lectura local de CPU/RAM y se conservará solo en "
+        "memoria de este chat, hasta 10 minutos, para una comparación explícita. "
+        "No se enviará al modelo."
+    )
+    prompt = "¿Autorizas esta lectura y retención temporal? [sí/no]> "
     try:
         answer = input_fn(prompt)
     except (EOFError, KeyboardInterrupt):
@@ -360,17 +376,49 @@ def _comparison_command(
         output_fn("Comparación no autorizada; no se tomó ninguna lectura nueva.")
         return False
     try:
-        if command == "/comparar base":
-            observation = comparison.establish(stamp)
-            output_fn(
-                "Base temporal guardada en memoria (system.status): "
-                f"CPU {observation.cpu_percent} %, RAM usada "
-                f"{observation.ram_used_gb} GiB / {observation.ram_total_gb} GiB; "
-                f"captura UTC {observation.captured_at.isoformat()}."
-            )
-        else:
-            delta = comparison.compare_now(stamp)
-            _show_resource_delta(delta, output_fn)
+        observation = comparison.establish(stamp)
+        output_fn(
+            "Base temporal guardada en memoria (system.status): "
+            f"CPU {observation.cpu_percent} %, RAM usada "
+            f"{observation.ram_used_gb} GiB / {observation.ram_total_gb} GiB; "
+            f"captura UTC {observation.captured_at.isoformat()}."
+        )
+    except ResourceComparisonError as exc:
+        output_fn(f"Comparación no disponible: {_safe_terminal_text(str(exc))}.")
+    return False
+
+
+def _compare_now(
+    comparison: LocalResourceComparison,
+    input_fn: Callable[[str], str],
+    output_fn: Callable[[str], None],
+) -> bool:
+    """Share WP072's second-reading authorization and execution path."""
+
+    try:
+        stamp = comparison.stamp()
+        if not comparison.status():
+            output_fn("No hay base temporal válida; usa /comparar base primero.")
+            return False
+    except ResourceComparisonError as exc:
+        output_fn(f"Comparación no disponible: {_safe_terminal_text(str(exc))}.")
+        return False
+    output_fn(
+        "Se tomará una nueva lectura local de CPU y RAM para compararla con "
+        "la base temporal de este chat. El resultado quedará aquí y no se "
+        "enviará al modelo. Una comparación exitosa consumirá la base."
+    )
+    try:
+        answer = input_fn("¿Autorizas esta segunda lectura? [sí/no]> ")
+    except (EOFError, KeyboardInterrupt):
+        output_fn("Comparación no autorizada. Volviendo a IRIS.")
+        return True
+    if answer.strip().casefold() not in ("si", "sí"):
+        output_fn("Comparación no autorizada; no se tomó ninguna lectura nueva.")
+        return False
+    try:
+        delta = comparison.compare_now(stamp)
+        _show_resource_delta(delta, output_fn)
     except ResourceComparisonError as exc:
         output_fn(f"Comparación no disponible: {_safe_terminal_text(str(exc))}.")
     return False
