@@ -764,6 +764,39 @@ def test_natural_comparison_without_baseline_never_observes_or_infers() -> None:
     assert h.session.diagnostic_snapshot() == before
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "¿Estoy utilizando más RAM que antes?",
+        "¿Uso más CPU que antes?",
+        "¿Utilizo menos RAM que antes?",
+        "¿Estoy consumiendo más RAM que antes?",
+    ],
+)
+def test_corrected_usage_phrases_require_existing_baseline_and_fresh_consent(
+    question: str,
+) -> None:
+    missing = rig()
+    output, prompts = drive(missing, question)
+    assert not missing.captures and not missing.provider.calls
+    assert any("/comparar base" in line for line in output)
+    assert not any("segunda lectura" in prompt for prompt in prompts)
+
+    denied = rig(info())
+    denied_output, _ = drive(denied, "/comparar base", "sí", question, "no")
+    assert len(denied.captures) == 1 and not denied.provider.calls
+    assert not any("Comparación local" in line for line in denied_output)
+
+    approved = rig(info(), lambda: (approved.time.advance(1), info(25.0, 11.0))[1])
+    approved_output, approved_prompts = drive(
+        approved, "/comparar base", "sí", question, "sí"
+    )
+    assert len(approved.captures) == 2 and not approved.provider.calls
+    assert sum("segunda lectura" in prompt for prompt in approved_prompts) == 1
+    assert any("Comparación local" in line for line in approved_output)
+    assert approved.session.messages == ()
+
+
 @pytest.mark.parametrize("age", [599.999, 600.0])
 def test_natural_comparison_respects_existing_strict_baseline_ttl(age: float) -> None:
     h = rig(info(), info(25.0, 11.0))

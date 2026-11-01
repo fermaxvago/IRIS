@@ -20,6 +20,10 @@ from iris.intelligence.resource_comparison_intent import (
         "  ¿ESTOY   USANDO MÁS ram QUE antes?  ",
         "¿Ha aumentado mi uso de CPU respecto a la base?",
         "Compara el uso actual de CPU y RAM con la base anterior",
+        "¿Estoy utilizando más RAM que antes?",
+        "¿Uso más CPU que antes?",
+        "¿Utilizo menos RAM que antes?",
+        "¿Estoy consumiendo más RAM que antes?",
     ],
 )
 def test_bounded_supported_comparisons_match(message: str) -> None:
@@ -58,6 +62,7 @@ def test_noncomparison_input_abstains(message: str) -> None:
         "Compara mi consumo de RAM",
         "Compara mi RAM con la base",
         "Compara mi memoria con la base",
+        "¿Uso más CPU?",
         "Revisa si uso más RAM que antes",
     ],
 )
@@ -77,6 +82,11 @@ def test_incomplete_metric_or_reference_requires_new_request(message: str) -> No
         "Compara mi RAM de la semana pasada",
         "Dime si estoy usando más RAM que el lunes",
         "Compara mi CPU con el lunes",
+        "¿Uso más CPU que ayer?",
+        "¿Utilizo menos RAM que antes en mi servidor?",
+        "¿Estoy consumiendo más RAM que antes y cierra Chrome?",
+        "¿Qué pasaría si utilizara más RAM que antes?",
+        "No uso más RAM que antes",
         "No compara mi RAM con la base",
         "¿Qué pasaría si mi RAM aumentara respecto a la base?",
         'Mi profesor dijo: "Compara mi RAM con la base"',

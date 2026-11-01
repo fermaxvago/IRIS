@@ -92,13 +92,16 @@ _NON_REQUEST_WORDS = frozenset(
         "hipoteticamente",
         "supongamos",
         "imagina",
+        "utilizara",
+        "consumiera",
     }
 )
 _QUOTES = frozenset("\"'`“”«»‘’")
 _SUPPORTED_METRIC = r"(?:cpu|ram|cpu y ram|ram y cpu)"
+_CURRENT_USAGE = r"(?:estoy (?:usando|utilizando|consumiendo)|uso|utilizo)"
 _MATCH_PATTERNS = (
     re.compile(
-        rf"(?:iris )?(?:dime si )?estoy usando (?:mas|menos) {_SUPPORTED_METRIC} que antes"
+        rf"(?:iris )?(?:dime si )?{_CURRENT_USAGE} (?:mas|menos) {_SUPPORTED_METRIC} que antes"
     ),
     re.compile(
         rf"(?:iris )?(?:ha )?(?:aumento|aumentado|disminuyo|disminuido|subio|subido|bajo|bajado) "
@@ -130,7 +133,14 @@ def recognize_resource_comparison_intent(message: str) -> ComparisonIntent:
     if text.startswith(("explica ", "explicame ", "que significa ", "que es ")):
         return ComparisonIntent.NO_MATCH
     comparison = bool(word_set & (_COMPARISON_WORDS - {"mas", "menos"})) or bool(
-        word_set & {"mas", "menos"} and word_set & {"que", "antes", "base"}
+        word_set & {"mas", "menos"}
+        and (
+            word_set & {"que", "antes", "base"}
+            or (
+                "?" in message
+                and word_set & {"uso", "utilizo", "usando", "utilizando", "consumiendo"}
+            )
+        )
     )
     metric = bool(word_set & _METRIC_WORDS)
     if not comparison or not metric:
