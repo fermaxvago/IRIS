@@ -245,6 +245,20 @@ conversation turns, monitor in the background, store a history, or explain why
 the values changed. The two readings are point-in-time measurements, not a
 trend or diagnosis. `/recursos` remains a separate, consent-gated model path.
 
+In chat, a few direct Spanish requests can enter that same comparison path:
+«¿Estoy usando más RAM que antes?», «¿Aumentó mi uso de CPU respecto a la
+base?» and «Compara el uso actual de RAM con la base anterior». First create
+the baseline with `/comparar base`. Without a valid baseline, the request takes
+no new reading. With one, IRIS explains that it will take one fresh local
+CPU/RAM reading, compare it against the retained baseline and consume the base
+on success; it then asks for separate consent. The result remains local and
+does not reach a model or become a conversation turn. «Antes» means only the
+explicitly retained base, not historical telemetry. An ambiguous request such
+as «¿Tengo más RAM que antes?» asks for a new, explicit use comparison; remote,
+historical, unsupported-metric and compound action requests receive guidance
+without a capture. Recognition is conservative and does not establish a base,
+authorize observation, infer causes or provide general command understanding.
+
 `/reiniciar` clears the temporary transcript; `/salir` returns to the legacy
 `IRIS>` command prompt. Other input, including `estado` and unknown slash
 commands, is conversation text and cannot dispatch capabilities. The session
