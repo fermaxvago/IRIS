@@ -953,6 +953,83 @@ def test_ordinary_turn_and_resource_consultation_do_not_replace_natural_baseline
     assert any("+1.00 GiB" in line for line in output)
 
 
+def test_wp074_cross_path_session_and_baseline_isolation() -> None:
+    """T-074-01: an approved contextual turn cannot replace a prior baseline."""
+
+    h = rig(
+        info(20.0, 10.0),
+        lambda: (h.time.advance(1), info(90.0, 20.0))[1],
+        lambda: (h.time.advance(1), info(25.0, 11.0))[1],
+    )
+    before = h.session.diagnostic_snapshot()
+    answers = iter(
+        (
+            "/comparar base",
+            "sí",
+            "hola",
+            "¿Cuánta RAM estoy usando?",
+            "sí",  # Authorize this consultation's local observation.
+            "sí",  # Separately authorize its exact contextual disclosure.
+            "¿Estoy usando más RAM que antes?",
+            "sí",  # Authorize the comparison's second local observation.
+            "¿Estoy usando más RAM que antes?",  # Consumed baseline cannot recur.
+            "/salir",
+            "salir",
+        )
+    )
+    output: list[str] = []
+    approval_states: list[tuple[int, int, int]] = []
+    approval_prompts: list[str] = []
+
+    def receive(prompt: str) -> str:
+        if "¿Autorizas" in prompt:
+            approval_prompts.append(prompt)
+            approval_states.append(
+                (len(h.captures), len(h.provider.calls), h.session.completed_turns)
+            )
+        return next(answers)
+
+    cli.main(
+        input_fn=receive,
+        output_fn=output.append,
+        chat_session=h.session,
+        system_awareness=h.awareness,
+        comparison_runtime=h.runtime,
+        comparison_monotonic_clock=h.time.monotonic,
+        comparison_utc_clock=h.time.now,
+    )
+
+    assert len(h.captures) == 3
+    assert len(h.provider.calls) == 2
+    assert approval_states == [(0, 0, 0), (1, 1, 1), (2, 1, 1), (2, 2, 2)]
+    assert sum("retención temporal" in p for p in approval_prompts) == 1
+    assert sum("observar estos recursos" in p for p in approval_prompts) == 1
+    assert sum("divulgación" in p for p in approval_prompts) == 1
+    assert sum("segunda lectura" in p for p in approval_prompts) == 1
+
+    ordinary, contextual = h.provider.calls
+    assert ordinary.context is None
+    assert ordinary.messages[-1].content == "hola"
+    assert contextual.context is not None
+    assert contextual.messages[-1].content == "¿Cuánta RAM estoy usando?"
+    assert contextual.messages[-1].content != "¿Estoy usando más RAM que antes?"
+    assert "system.status" in contextual.context.section
+    assert any(line == contextual.context.section for line in output)
+    assert any("RAM utilizada: 20.0 GiB" in line for line in output)
+    assert any("+5.0 puntos porcentuales" in line for line in output)
+    assert any("+1.00 GiB" in line for line in output)
+    assert sum("Comparación local" in line for line in output) == 1
+    assert any("No hay base temporal válida" in line for line in output)
+    assert h.session.completed_turns == 2
+    assert h.session.revision == before.revision + 2
+    assert [
+        message.content for message in h.session.messages if message.role == "user"
+    ] == [
+        "hola",
+        "¿Cuánta RAM estoy usando?",
+    ]
+
+
 def test_natural_comparison_rechecks_session_after_consent() -> None:
     h = rig(info(), info(25.0, 11.0))
     answers = iter(
