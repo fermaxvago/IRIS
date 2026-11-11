@@ -6,8 +6,10 @@ import argparse
 import sys
 import unicodedata
 from collections.abc import Callable, Mapping, Sequence
-from datetime import datetime
+from dataclasses import replace
+from datetime import UTC, datetime
 from time import monotonic
+from uuid import uuid4
 
 from iris.capabilities import CapabilityRuntime
 from iris.core.request import Request
@@ -51,6 +53,20 @@ from iris.intelligence.system_awareness import (
     ConversationalSystemAwareness,
     SystemAwarenessError,
 )
+from iris.memory import ScopeKind
+from iris.planning import (
+    DeterministicPlanner,
+    Goal,
+    GoalProvenance,
+    GoalScope,
+    Plan,
+    Planner,
+    PlanningReason,
+    PlanningRequest,
+    PlanningResult,
+    PlanningStatus,
+)
+from iris.planning.study_strategy import study_session_rule
 from iris.router import DeterministicRouter
 from iris.router.contracts import Router
 from iris.router.models import RouteDecision
@@ -662,13 +678,151 @@ def _failure_explanation(metadata: Mapping[str, object]) -> str:
     )
 
 
+def _planning_objective(value: str) -> str:
+    """Validate a single literal objective before constructing Planning state."""
+
+    if any(unicodedata.category(character).startswith("C") for character in value):
+        raise argparse.ArgumentTypeError("el objetivo contiene caracteres de control")
+    objective = value.strip()
+    if not objective:
+        raise argparse.ArgumentTypeError("el objetivo no puede estar vacío")
+    if len(objective) > 160:
+        raise argparse.ArgumentTypeError("el objetivo excede 160 caracteres")
+    return objective
+
+
+def _validated_planning_result(
+    value: object, request: PlanningRequest
+) -> PlanningResult:
+    """Reject a foreign or mutated result before presenting any success."""
+
+    if type(value) is not PlanningResult:
+        raise ValueError("planner returned a noncanonical result")
+    if replace(value) != value:
+        raise ValueError("planner returned a malformed result")
+    if (
+        value.planning_request_id != request.planning_request_id
+        or value.goal_id != request.goal.goal_id
+        or value.created_at < request.created_at
+    ):
+        raise ValueError("planner result does not match this request")
+    if (
+        value.reason is PlanningReason.CONFLICTING_CONSTRAINTS
+        and not request.goal.constraints
+    ):
+        raise ValueError("planner reported conflicts without supplied constraints")
+    plan = value.plan
+    if plan is not None:
+        if (
+            type(plan) is not Plan
+            or replace(plan) != plan
+            or plan.goal_id != request.goal.goal_id
+            or any(replace(step) != step for step in plan.steps)
+        ):
+            raise ValueError("planner returned a noncanonical plan")
+    return value
+
+
+def _show_planning_result(
+    request: PlanningRequest,
+    result: PlanningResult,
+    output_fn: Callable[[str], None],
+) -> None:
+    output_fn(
+        "Objetivo: " + _safe_terminal_text(request.goal.objective, allow_newline=False)
+    )
+    if result.status is PlanningStatus.PLAN_CREATED:
+        assert result.plan is not None
+        output_fn("Plan conceptual propuesto:")
+        for step in result.plan.steps:
+            output_fn(
+                f"{_safe_terminal_text(step.step_id, allow_newline=False)}. "
+                + _safe_terminal_text(step.objective, allow_newline=False)
+            )
+            output_fn(
+                "   Resultado esperado: "
+                + _safe_terminal_text(step.expected_outcome, allow_newline=False)
+            )
+        output_fn("No se ejecutó ninguna acción ni se completó la tarea.")
+    elif result.status is PlanningStatus.NO_PLAN_REQUIRED:
+        output_fn(
+            "La estrategia registrada no requiere descomposición; "
+            "esto no confirma que la tarea esté completada."
+        )
+    elif result.status is PlanningStatus.INSUFFICIENT_CONTEXT:
+        output_fn(
+            "La estrategia configurada requiere información no proporcionada; "
+            "no se consultó contexto automáticamente."
+        )
+    elif result.reason is PlanningReason.NO_REGISTERED_STRATEGY:
+        output_fn(
+            "No hay una estrategia registrada para este objetivo; "
+            "esto no significa que sea imposible."
+        )
+    elif result.reason is PlanningReason.CONFLICTING_CONSTRAINTS:
+        output_fn(
+            "Las restricciones proporcionadas son incompatibles; no se creó plan."
+        )
+    else:
+        raise ValueError("unrecognized planning result")
+
+
+def _run_explicit_planning(
+    objective: str,
+    output_fn: Callable[[str], None],
+    *,
+    planner: Planner | None = None,
+    clock: Callable[[], datetime] | None = None,
+    id_factory: Callable[[], str] | None = None,
+) -> None:
+    """Build one traceable request, evaluate once, render, then stop."""
+
+    now = clock or (lambda: datetime.now(UTC))
+    new_id = id_factory or (lambda: uuid4().hex)
+    try:
+        request_id, goal_id, planning_request_id = (
+            new_id(),
+            new_id(),
+            new_id(),
+        )
+        if len({request_id, goal_id, planning_request_id}) != 3:
+            raise ValueError("planning identities must be distinct")
+        user_request = Request(content=objective, source="cli", request_id=request_id)
+        goal = Goal(
+            goal_id=goal_id,
+            objective=user_request.content,
+            scope=GoalScope(ScopeKind.TASK, user_request.request_id),
+            provenance=GoalProvenance("request", user_request.request_id, None),
+        )
+        planning_request = PlanningRequest(
+            planning_request_id=planning_request_id,
+            goal=goal,
+            created_at=now(),
+            context=None,
+        )
+        selected_planner: Planner = planner or DeterministicPlanner(
+            (study_session_rule(),), clock=now
+        )
+        result = _validated_planning_result(
+            selected_planner.plan(planning_request), planning_request
+        )
+    except ValueError as exc:
+        raise SystemExit(
+            "Planificación no disponible: contrato de planificación inválido."
+        ) from exc
+    _show_planning_result(planning_request, result, output_fn)
+
+
 def entrypoint(
     argv: Sequence[str] | None = None,
     *,
     input_fn: Callable[[str], str] = input,
     output_fn: Callable[[str], None] = print,
+    planning_planner: Planner | None = None,
+    planning_clock: Callable[[], datetime] | None = None,
+    planning_id_factory: Callable[[], str] | None = None,
 ) -> None:
-    """Parse an explicit chat invocation while preserving bare legacy IRIS."""
+    """Parse explicit commands while preserving bare legacy IRIS."""
 
     arguments = sys.argv[1:] if argv is None else argv
     if not arguments:
@@ -687,7 +841,28 @@ def entrypoint(
         action="store_true",
         help="generación directa si el modelo la admite",
     )
+    planning = commands.add_parser(
+        "planificar", help="plan conceptual limitado, sin ejecución"
+    )
+    planning.add_argument(
+        "--objetivo",
+        action="append",
+        type=_planning_objective,
+        required=True,
+        help="objetivo explícito (máximo 160 caracteres)",
+    )
     parsed = parser.parse_args(arguments)
+    if parsed.command == "planificar":
+        if len(parsed.objetivo) != 1:
+            parser.error("especifica exactamente un --objetivo")
+        _run_explicit_planning(
+            parsed.objetivo[0],
+            output_fn,
+            planner=planning_planner,
+            clock=planning_clock,
+            id_factory=planning_id_factory,
+        )
+        return
     if parsed.command == "chat":
         provider = (
             OllamaProvider(direct_generation=True)

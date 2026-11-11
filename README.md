@@ -131,6 +131,25 @@ Current commands:
 | `ayuda` | Lists available commands. |
 | `salir` | Closes IRIS cleanly. |
 
+For limited conceptual planning, run:
+
+```powershell
+python -m iris planificar --objetivo "Preparar una sesión de estudio"
+# or: iris planificar --objetivo "Preparar una sesión de estudio"
+```
+
+This explicit command has exactly one built-in strategy: a generic four-step
+study-session preparation template covering focus, materials, review and
+practice, and self-assessment. Its steps describe possible future human work;
+IRIS executes none of them. An unregistered objective receives a truthful
+"no registered strategy" response, not a fabricated plan or a claim that the
+task is impossible. Matching ignores case and normalizes whitespace but does
+not infer synonyms. The command neither contacts Ollama nor retrieves personal
+context, files, assignments, or calendar details. It is not personalized
+academic planning, autonomous tutoring, scheduling, or general-purpose
+planning. WP075's single authentic built-in strategy resolves the first CLI
+planning acceptance gap; it does not authorize an unreviewed strategy catalog.
+
 To enter local text chat with an already installed Ollama model, run:
 
 ```powershell
