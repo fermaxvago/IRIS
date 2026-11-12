@@ -138,6 +138,7 @@ python -m iris planificar --objetivo "Preparar una sesión de estudio"
 # or: iris planificar --objetivo "Preparar una sesión de estudio"
 python -m iris planificar --listar
 python -m iris planificar --estrategia estudio
+python -m iris planificar --requisitos estudio
 ```
 
 This explicit command has exactly one built-in strategy: a generic four-step
@@ -157,6 +158,13 @@ objective from its registered rule; the originating Request records the literal
 ID rather than pretending the user typed the objective. These modes remain
 explicit and mutually exclusive with `--objetivo`. All results are conceptual;
 selection does not execute steps, use a model, or create a PlanRun.
+`--requisitos` displays the selected registered rule's context requirements
+without invoking Planning. The current `estudio` rule requires none. When a
+Planning result lacks required context, IRIS lists the missing kind, key and
+scope without showing context values. Presence of a required item does not
+establish that its value is true. This command does not accept context values
+through a CLI option or retrieve them automatically; plans remain conceptual
+and non-executable.
 
 To enter local text chat with an already installed Ollama model, run:
 
