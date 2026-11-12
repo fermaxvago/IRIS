@@ -61,11 +61,14 @@ from iris.planning import (
     GoalScope,
     Plan,
     Planner,
+    PlanningContextRequirement,
     PlanningReason,
     PlanningRequest,
     PlanningResult,
     PlanningStatus,
 )
+from iris.planning.deterministic import _missing_context_requirements
+from iris.planning.models import _constraint_conflicts
 from iris.planning.strategy_manifest import (
     StrategyDescriptor,
     StrategyManifest,
@@ -728,15 +731,28 @@ def _validated_planning_result(
 
 
 def _validated_selected_result(
-    result: PlanningResult, descriptor: StrategyDescriptor
+    result: PlanningResult, request: PlanningRequest, descriptor: StrategyDescriptor
 ) -> None:
     """Bind a selected rule to the plan actually returned by the planner."""
 
     rule = descriptor.rule
-    if rule.required_context:
+    if request.goal.objective != rule.objective:
+        raise ValueError("selected strategy objective is inconsistent")
+    conflicts = _constraint_conflicts(request.goal.constraints)
+    if conflicts:
+        if (
+            result.status is not PlanningStatus.UNSATISFIABLE
+            or result.reason is not PlanningReason.CONFLICTING_CONSTRAINTS
+            or result.constraint_conflicts != conflicts
+        ):
+            raise ValueError("selected strategy constraints are inconsistent")
+        return
+    missing = _missing_context_requirements(rule, request.context)
+    if missing:
         if (
             result.status is not PlanningStatus.INSUFFICIENT_CONTEXT
             or result.reason is not PlanningReason.MISSING_REQUIRED_CONTEXT
+            or result.missing_context != missing
         ):
             raise ValueError("selected strategy result is inconsistent")
     elif rule.steps:
@@ -753,6 +769,39 @@ def _validated_selected_result(
         or result.reason is not PlanningReason.DECOMPOSITION_UNNECESSARY
     ):
         raise ValueError("selected strategy result is inconsistent")
+
+
+def _format_planning_requirement(item: PlanningContextRequirement) -> str:
+    scope = item.scope.kind.value
+    if item.scope.identifier is not None:
+        scope += ":" + item.scope.identifier
+    return (
+        "kind="
+        + _safe_terminal_text(item.kind, allow_newline=False)
+        + ", key="
+        + _safe_terminal_text(item.key, allow_newline=False)
+        + ", scope="
+        + _safe_terminal_text(scope, allow_newline=False)
+    )
+
+
+def _show_planning_requirements(
+    descriptor: StrategyDescriptor, output_fn: Callable[[str], None]
+) -> None:
+    output_fn(
+        "Estrategia: "
+        + _safe_terminal_text(descriptor.strategy_id, allow_newline=False)
+    )
+    output_fn(
+        "Objetivo: "
+        + _safe_terminal_text(descriptor.rule.objective, allow_newline=False)
+    )
+    if not descriptor.rule.required_context:
+        output_fn("Requisitos de contexto: ninguno.")
+        return
+    output_fn("Requisitos de contexto:")
+    for item in descriptor.rule.required_context:
+        output_fn("- " + _format_planning_requirement(item))
 
 
 def _show_planning_result(
@@ -786,6 +835,8 @@ def _show_planning_result(
             "La estrategia configurada requiere información no proporcionada; "
             "no se consultó contexto automáticamente."
         )
+        for item in result.missing_context:
+            output_fn("- " + _format_planning_requirement(item))
     elif result.reason is PlanningReason.NO_REGISTERED_STRATEGY:
         output_fn(
             "No hay una estrategia registrada para este objetivo; "
@@ -850,7 +901,7 @@ def _run_explicit_planning(
             selected_planner.plan(planning_request), planning_request
         )
         if selected is not None:
-            _validated_selected_result(result, selected)
+            _validated_selected_result(result, planning_request, selected)
     except ValueError as exc:
         raise SystemExit(
             "Planificación no disponible: contrato de planificación inválido."
@@ -911,6 +962,9 @@ def entrypoint(
     modes.add_argument(
         "--estrategia", action="append", help="identificador exacto de estrategia"
     )
+    modes.add_argument(
+        "--requisitos", action="append", help="mostrar requisitos de una estrategia"
+    )
     parsed = parser.parse_args(arguments)
     if parsed.command == "planificar":
         if parsed.objetivo is not None and len(parsed.objetivo) != 1:
@@ -919,6 +973,8 @@ def entrypoint(
             parser.error("especifica --listar una sola vez")
         if parsed.estrategia is not None and len(parsed.estrategia) != 1:
             parser.error("especifica exactamente una --estrategia")
+        if parsed.requisitos is not None and len(parsed.requisitos) != 1:
+            parser.error("especifica exactamente un --requisitos")
         try:
             manifest = planning_manifest or built_in_manifest()
             manifest = StrategyManifest(manifest.entries)
@@ -938,6 +994,12 @@ def entrypoint(
                         descriptor.rule.objective, allow_newline=False
                     )
                 )
+            return
+        if parsed.requisitos is not None:
+            requirement_descriptor = manifest.resolve(parsed.requisitos[0])
+            if requirement_descriptor is None:
+                parser.error("identificador de estrategia no registrado")
+            _show_planning_requirements(requirement_descriptor, output_fn)
             return
         selected = None
         if parsed.estrategia is not None:

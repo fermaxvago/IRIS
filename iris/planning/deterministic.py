@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from iris.context.models import ContextSnapshot
 from iris.memory.models import identifier, utc_time
 from iris.planning.errors import DuplicatePlanningRuleError
 from iris.planning.models import (
@@ -67,6 +68,23 @@ class PlanningRule:
         if len(requirements) != len(set(requirements)):
             raise ValueError("required context requirements must be distinct")
         object.__setattr__(self, "required_context", requirements)
+
+
+def _missing_context_requirements(
+    rule: PlanningRule, context: ContextSnapshot | None
+) -> tuple[PlanningContextRequirement, ...]:
+    """Match selected item identities using the planner's canonical rule."""
+
+    available = (
+        set()
+        if context is None
+        else {(item.kind, item.key, item.scope) for item in context.items}
+    )
+    return tuple(
+        item
+        for item in rule.required_context
+        if (item.kind, item.key, item.scope) not in available
+    )
 
 
 class DeterministicPlanner:
@@ -133,16 +151,7 @@ class DeterministicPlanner:
                 PlanningReason.NO_REGISTERED_STRATEGY,
             )
 
-        available = (
-            set()
-            if request.context is None
-            else {(item.kind, item.key, item.scope) for item in request.context.items}
-        )
-        missing = tuple(
-            item
-            for item in rule.required_context
-            if (item.kind, item.key, item.scope) not in available
-        )
+        missing = _missing_context_requirements(rule, request.context)
         if missing:
             return self._result(
                 request,
