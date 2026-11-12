@@ -66,7 +66,11 @@ from iris.planning import (
     PlanningResult,
     PlanningStatus,
 )
-from iris.planning.study_strategy import study_session_rule
+from iris.planning.strategy_manifest import (
+    StrategyDescriptor,
+    StrategyManifest,
+    built_in_manifest,
+)
 from iris.router import DeterministicRouter
 from iris.router.contracts import Router
 from iris.router.models import RouteDecision
@@ -723,6 +727,34 @@ def _validated_planning_result(
     return value
 
 
+def _validated_selected_result(
+    result: PlanningResult, descriptor: StrategyDescriptor
+) -> None:
+    """Bind a selected rule to the plan actually returned by the planner."""
+
+    rule = descriptor.rule
+    if rule.required_context:
+        if (
+            result.status is not PlanningStatus.INSUFFICIENT_CONTEXT
+            or result.reason is not PlanningReason.MISSING_REQUIRED_CONTEXT
+        ):
+            raise ValueError("selected strategy result is inconsistent")
+    elif rule.steps:
+        if (
+            result.status is not PlanningStatus.PLAN_CREATED
+            or result.reason is not PlanningReason.DECOMPOSITION_CREATED
+            or result.plan is None
+            or result.plan.steps != rule.steps
+            or result.plan.assumptions != rule.assumptions
+        ):
+            raise ValueError("selected strategy plan is inconsistent")
+    elif (
+        result.status is not PlanningStatus.NO_PLAN_REQUIRED
+        or result.reason is not PlanningReason.DECOMPOSITION_UNNECESSARY
+    ):
+        raise ValueError("selected strategy result is inconsistent")
+
+
 def _show_planning_result(
     request: PlanningRequest,
     result: PlanningResult,
@@ -774,6 +806,8 @@ def _run_explicit_planning(
     planner: Planner | None = None,
     clock: Callable[[], datetime] | None = None,
     id_factory: Callable[[], str] | None = None,
+    manifest: StrategyManifest | None = None,
+    selected: StrategyDescriptor | None = None,
 ) -> None:
     """Build one traceable request, evaluate once, render, then stop."""
 
@@ -787,10 +821,19 @@ def _run_explicit_planning(
         )
         if len({request_id, goal_id, planning_request_id}) != 3:
             raise ValueError("planning identities must be distinct")
-        user_request = Request(content=objective, source="cli", request_id=request_id)
+        user_request = Request(
+            content=selected.strategy_id if selected is not None else objective,
+            source="cli",
+            request_id=request_id,
+            metadata=(
+                {"input_mode": "strategy_id", "strategy_id": selected.strategy_id}
+                if selected is not None
+                else {}
+            ),
+        )
         goal = Goal(
             goal_id=goal_id,
-            objective=user_request.content,
+            objective=objective,
             scope=GoalScope(ScopeKind.TASK, user_request.request_id),
             provenance=GoalProvenance("request", user_request.request_id, None),
         )
@@ -801,15 +844,22 @@ def _run_explicit_planning(
             context=None,
         )
         selected_planner: Planner = planner or DeterministicPlanner(
-            (study_session_rule(),), clock=now
+            (manifest or built_in_manifest()).rules, clock=now
         )
         result = _validated_planning_result(
             selected_planner.plan(planning_request), planning_request
         )
+        if selected is not None:
+            _validated_selected_result(result, selected)
     except ValueError as exc:
         raise SystemExit(
             "Planificación no disponible: contrato de planificación inválido."
         ) from exc
+    if selected is not None:
+        output_fn(
+            "Estrategia seleccionada: "
+            + _safe_terminal_text(selected.strategy_id, allow_newline=False)
+        )
     _show_planning_result(planning_request, result, output_fn)
 
 
@@ -821,6 +871,7 @@ def entrypoint(
     planning_planner: Planner | None = None,
     planning_clock: Callable[[], datetime] | None = None,
     planning_id_factory: Callable[[], str] | None = None,
+    planning_manifest: StrategyManifest | None = None,
 ) -> None:
     """Parse explicit commands while preserving bare legacy IRIS."""
 
@@ -844,23 +895,63 @@ def entrypoint(
     planning = commands.add_parser(
         "planificar", help="plan conceptual limitado, sin ejecución"
     )
-    planning.add_argument(
+    modes = planning.add_mutually_exclusive_group(required=True)
+    modes.add_argument(
         "--objetivo",
         action="append",
         type=_planning_objective,
-        required=True,
         help="objetivo explícito (máximo 160 caracteres)",
+    )
+    modes.add_argument(
+        "--listar",
+        action="append_const",
+        const=True,
+        help="listar estrategias incorporadas",
+    )
+    modes.add_argument(
+        "--estrategia", action="append", help="identificador exacto de estrategia"
     )
     parsed = parser.parse_args(arguments)
     if parsed.command == "planificar":
-        if len(parsed.objetivo) != 1:
+        if parsed.objetivo is not None and len(parsed.objetivo) != 1:
             parser.error("especifica exactamente un --objetivo")
+        if parsed.listar is not None and len(parsed.listar) != 1:
+            parser.error("especifica --listar una sola vez")
+        if parsed.estrategia is not None and len(parsed.estrategia) != 1:
+            parser.error("especifica exactamente una --estrategia")
+        try:
+            manifest = planning_manifest or built_in_manifest()
+            manifest = StrategyManifest(manifest.entries)
+        except ValueError as exc:
+            raise SystemExit(
+                "Planificación no disponible: manifiesto inválido."
+            ) from exc
+        if parsed.listar is not None:
+            for descriptor in manifest.entries:
+                output_fn(
+                    "Estrategia: "
+                    + _safe_terminal_text(descriptor.strategy_id, allow_newline=False)
+                    + " — "
+                    + _safe_terminal_text(descriptor.description, allow_newline=False)
+                    + " | Objetivo: "
+                    + _safe_terminal_text(
+                        descriptor.rule.objective, allow_newline=False
+                    )
+                )
+            return
+        selected = None
+        if parsed.estrategia is not None:
+            selected = manifest.resolve(parsed.estrategia[0])
+            if selected is None:
+                parser.error("identificador de estrategia no registrado")
         _run_explicit_planning(
-            parsed.objetivo[0],
+            selected.rule.objective if selected is not None else parsed.objetivo[0],
             output_fn,
             planner=planning_planner,
             clock=planning_clock,
             id_factory=planning_id_factory,
+            manifest=manifest,
+            selected=selected,
         )
         return
     if parsed.command == "chat":
