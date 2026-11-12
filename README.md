@@ -136,6 +136,8 @@ For limited conceptual planning, run:
 ```powershell
 python -m iris planificar --objetivo "Preparar una sesión de estudio"
 # or: iris planificar --objetivo "Preparar una sesión de estudio"
+python -m iris planificar --listar
+python -m iris planificar --estrategia estudio
 ```
 
 This explicit command has exactly one built-in strategy: a generic four-step
@@ -149,6 +151,12 @@ context, files, assignments, or calendar details. It is not personalized
 academic planning, autonomous tutoring, scheduling, or general-purpose
 planning. WP075's single authentic built-in strategy resolves the first CLI
 planning acceptance gap; it does not authorize an unreviewed strategy catalog.
+`--listar` shows the registered strategy ID, description and canonical
+objective. `--estrategia estudio` selects that exact ID and derives the Goal
+objective from its registered rule; the originating Request records the literal
+ID rather than pretending the user typed the objective. These modes remain
+explicit and mutually exclusive with `--objetivo`. All results are conceptual;
+selection does not execute steps, use a model, or create a PlanRun.
 
 To enter local text chat with an already installed Ollama model, run:
 
