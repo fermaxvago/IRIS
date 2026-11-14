@@ -139,6 +139,8 @@ python -m iris planificar --objetivo "Preparar una sesión de estudio"
 python -m iris planificar --listar
 python -m iris planificar --estrategia estudio
 python -m iris planificar --requisitos estudio
+python -m iris planificar --listar --formato json
+python -m iris planificar --requisitos estudio --formato json
 python -m iris planificar --estrategia estudio --formato json
 python -m iris planificar --objetivo "Preparar una sesión de estudio" --formato json
 ```
@@ -168,9 +170,49 @@ establish that its value is true. This command does not accept context values
 through a CLI option or retrieve them automatically; plans remain conceptual
 and non-executable.
 
-`--formato json` is available only with `--estrategia` or `--objetivo`; it is
-rejected with `--listar` and `--requisitos`. Without this option, the existing
-human-readable output is unchanged. JSON format `1.0` contains exactly
+`--formato json` is available with all four Planning modes. Without this
+option, their human-readable output is unchanged. For `--listar`, it emits one
+`strategy_catalog` document with exactly `format_version`, `document_type` and
+`strategies`. Each strategy contains its exact registered `strategy_id`,
+`description` and canonical `objective`, ordered by ascending strategy ID.
+For `--requisitos`, it emits one `strategy_requirements` document with exactly
+`format_version`, `document_type`, `strategy_id`, `objective` and
+`required_context`. Each declared requirement contains `kind`, `key` and
+`scope` (`kind`, `identifier`) in canonical order. The production `estudio`
+strategy declares no requirements. A declared requirement is not missing
+context from an evaluated request, verified information, or permission to
+acquire context. The pair (`document_type`, `format_version`) identifies each
+independent public metadata contract; both begin at `1.0`. Changes to their
+fields or meanings require compatibility review. These metadata queries do
+not evaluate Planning, acquire context or execute a plan. Unknown IDs and
+invalid arguments exit 2 with empty stdout; invalid metadata or serialization
+exits 1 with empty stdout. Successful queries exit 0 with one JSON document
+on stdout and empty stderr. For example:
+
+```python
+import json
+import subprocess
+
+catalog = json.loads(
+    subprocess.run(
+        ["iris", "planificar", "--listar", "--formato", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+)
+strategy_id = catalog["strategies"][0]["strategy_id"]
+requirements = json.loads(
+    subprocess.run(
+        ["iris", "planificar", "--requisitos", strategy_id, "--formato", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+)["required_context"]
+```
+
+For result-producing modes, JSON format `1.0` contains exactly
 `format_version`, `input`, `planning_request`, and `planning_result`. The
 `input` object identifies a literal strategy-ID selection or a literal
 objective; it never invents a selection. The other two objects use the

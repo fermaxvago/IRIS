@@ -197,8 +197,6 @@ def test_unknown_objective_is_valid_abstention() -> None:
         ("--estrategia", "estudio", "--formato", "xml"),
         ("--estrategia", "estudio", "--formato"),
         ("--estrategia", "estudio", "--formato", "json", "--formato", "json"),
-        ("--listar", "--formato", "json"),
-        ("--requisitos", "estudio", "--formato", "json"),
         ("--formato", "json"),
         ("--objetivo", STUDY_OBJECTIVE, "--estrategia", "estudio", "--formato", "json"),
         ("--objetivo", STUDY_OBJECTIVE, "--formato", "json", "extra"),
