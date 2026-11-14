@@ -68,6 +68,10 @@ from iris.planning import (
     PlanningStatus,
 )
 from iris.planning.deterministic import _missing_context_requirements, _objective_key
+from iris.planning.discovery_json import (
+    catalog_json_document,
+    requirements_json_document,
+)
 from iris.planning.models import _constraint_conflicts
 from iris.planning.public_json import planning_json_document
 from iris.planning.strategy_manifest import (
@@ -1036,16 +1040,23 @@ def entrypoint(
         if parsed.formato is not None:
             if len(parsed.formato) != 1:
                 parser.error("especifica --formato una sola vez")
-            if parsed.listar is not None or parsed.requisitos is not None:
-                parser.error("--formato requiere --objetivo o --estrategia")
         try:
             manifest = planning_manifest or built_in_manifest()
             manifest = StrategyManifest(manifest.entries)
-        except ValueError as exc:
+        except (AttributeError, TypeError, ValueError) as exc:
             raise SystemExit(
                 "Planificación no disponible: manifiesto inválido."
             ) from exc
         if parsed.listar is not None:
+            if parsed.formato is not None:
+                try:
+                    document = catalog_json_document(manifest)
+                except Exception as exc:
+                    raise SystemExit(
+                        "Planificación no disponible: catálogo JSON inválido."
+                    ) from exc
+                output_fn(document)
+                return
             for descriptor in manifest.entries:
                 output_fn(
                     "Estrategia: "
@@ -1062,6 +1073,17 @@ def entrypoint(
             requirement_descriptor = manifest.resolve(parsed.requisitos[0])
             if requirement_descriptor is None:
                 parser.error("identificador de estrategia no registrado")
+            if parsed.formato is not None:
+                try:
+                    document = requirements_json_document(
+                        manifest, requirement_descriptor.strategy_id
+                    )
+                except Exception as exc:
+                    raise SystemExit(
+                        "Planificación no disponible: requisitos JSON inválidos."
+                    ) from exc
+                output_fn(document)
+                return
             _show_planning_requirements(requirement_descriptor, output_fn)
             return
         selected = None
