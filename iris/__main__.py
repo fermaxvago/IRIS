@@ -67,8 +67,9 @@ from iris.planning import (
     PlanningResult,
     PlanningStatus,
 )
-from iris.planning.deterministic import _missing_context_requirements
+from iris.planning.deterministic import _missing_context_requirements, _objective_key
 from iris.planning.models import _constraint_conflicts
+from iris.planning.public_json import planning_json_document
 from iris.planning.strategy_manifest import (
     StrategyDescriptor,
     StrategyManifest,
@@ -736,7 +737,7 @@ def _validated_selected_result(
     """Bind a selected rule to the plan actually returned by the planner."""
 
     rule = descriptor.rule
-    if request.goal.objective != rule.objective:
+    if _objective_key(request.goal.objective) != _objective_key(rule.objective):
         raise ValueError("selected strategy objective is inconsistent")
     conflicts = _constraint_conflicts(request.goal.constraints)
     if conflicts:
@@ -769,6 +770,38 @@ def _validated_selected_result(
         or result.reason is not PlanningReason.DECOMPOSITION_UNNECESSARY
     ):
         raise ValueError("selected strategy result is inconsistent")
+
+
+def _validated_objective_result(
+    result: PlanningResult, request: PlanningRequest, manifest: StrategyManifest
+) -> None:
+    """Apply the planner's objective match to JSON result validation."""
+
+    objective_key = _objective_key(request.goal.objective)
+    match = next(
+        (
+            descriptor
+            for descriptor in manifest.entries
+            if _objective_key(descriptor.rule.objective) == objective_key
+        ),
+        None,
+    )
+    if match is not None:
+        _validated_selected_result(result, request, match)
+        return
+    conflicts = _constraint_conflicts(request.goal.constraints)
+    if conflicts:
+        if (
+            result.status is not PlanningStatus.UNSATISFIABLE
+            or result.reason is not PlanningReason.CONFLICTING_CONSTRAINTS
+            or result.constraint_conflicts != conflicts
+        ):
+            raise ValueError("objective result contradicts constraint precedence")
+    elif (
+        result.status is not PlanningStatus.UNSATISFIABLE
+        or result.reason is not PlanningReason.NO_REGISTERED_STRATEGY
+    ):
+        raise ValueError("objective result contradicts registered rules")
 
 
 def _format_planning_requirement(item: PlanningContextRequirement) -> str:
@@ -859,11 +892,13 @@ def _run_explicit_planning(
     id_factory: Callable[[], str] | None = None,
     manifest: StrategyManifest | None = None,
     selected: StrategyDescriptor | None = None,
+    json_format: bool = False,
 ) -> None:
     """Build one traceable request, evaluate once, render, then stop."""
 
     now = clock or (lambda: datetime.now(UTC))
     new_id = id_factory or (lambda: uuid4().hex)
+    json_text: str | None = None
     try:
         request_id, goal_id, planning_request_id = (
             new_id(),
@@ -902,10 +937,30 @@ def _run_explicit_planning(
         )
         if selected is not None:
             _validated_selected_result(result, planning_request, selected)
+        if json_format:
+            if selected is None:
+                _validated_objective_result(
+                    result, planning_request, manifest or built_in_manifest()
+                )
+            json_text = planning_json_document(
+                user_request,
+                planning_request,
+                result,
+                strategy_id=None if selected is None else selected.strategy_id,
+            )
+            if type(json_text) is not str:
+                raise ValueError("JSON serializer returned a non-string")
     except ValueError as exc:
         raise SystemExit(
             "Planificación no disponible: contrato de planificación inválido."
         ) from exc
+    except Exception as exc:
+        if not json_format:
+            raise
+        raise SystemExit("Planificación no disponible: salida JSON inválida.") from exc
+    if json_text is not None:
+        output_fn(json_text)
+        return
     if selected is not None:
         output_fn(
             "Estrategia seleccionada: "
@@ -965,6 +1020,9 @@ def entrypoint(
     modes.add_argument(
         "--requisitos", action="append", help="mostrar requisitos de una estrategia"
     )
+    planning.add_argument(
+        "--formato", action="append", choices=("json",), help="salida JSON 1.0"
+    )
     parsed = parser.parse_args(arguments)
     if parsed.command == "planificar":
         if parsed.objetivo is not None and len(parsed.objetivo) != 1:
@@ -975,6 +1033,11 @@ def entrypoint(
             parser.error("especifica exactamente una --estrategia")
         if parsed.requisitos is not None and len(parsed.requisitos) != 1:
             parser.error("especifica exactamente un --requisitos")
+        if parsed.formato is not None:
+            if len(parsed.formato) != 1:
+                parser.error("especifica --formato una sola vez")
+            if parsed.listar is not None or parsed.requisitos is not None:
+                parser.error("--formato requiere --objetivo o --estrategia")
         try:
             manifest = planning_manifest or built_in_manifest()
             manifest = StrategyManifest(manifest.entries)
@@ -1014,6 +1077,7 @@ def entrypoint(
             id_factory=planning_id_factory,
             manifest=manifest,
             selected=selected,
+            json_format=parsed.formato is not None,
         )
         return
     if parsed.command == "chat":

@@ -139,6 +139,8 @@ python -m iris planificar --objetivo "Preparar una sesión de estudio"
 python -m iris planificar --listar
 python -m iris planificar --estrategia estudio
 python -m iris planificar --requisitos estudio
+python -m iris planificar --estrategia estudio --formato json
+python -m iris planificar --objetivo "Preparar una sesión de estudio" --formato json
 ```
 
 This explicit command has exactly one built-in strategy: a generic four-step
@@ -165,6 +167,38 @@ scope without showing context values. Presence of a required item does not
 establish that its value is true. This command does not accept context values
 through a CLI option or retrieve them automatically; plans remain conceptual
 and non-executable.
+
+`--formato json` is available only with `--estrategia` or `--objetivo`; it is
+rejected with `--listar` and `--requisitos`. Without this option, the existing
+human-readable output is unchanged. JSON format `1.0` contains exactly
+`format_version`, `input`, `planning_request`, and `planning_result`. The
+`input` object identifies a literal strategy-ID selection or a literal
+objective; it never invents a selection. The other two objects use the
+existing Planning serializers and preserve their documented nested fields.
+Public field names, types and meanings require compatibility review before
+change. A valid Planning result, including an abstention such as
+`no_registered_strategy`, exits 0 and writes one complete JSON document to
+stdout with empty stderr. Invalid CLI usage exits 2; an internal Planning or
+serialization failure exits 1, writes no JSON to stdout and reports a bounded
+error on stderr. A consumer can use `json.loads()` without parsing terminal
+prose:
+
+```python
+import json
+import subprocess
+
+completed = subprocess.run(
+    ["iris", "planificar", "--estrategia", "estudio", "--formato", "json"],
+    capture_output=True,
+    text=True,
+    check=True,
+)
+document = json.loads(completed.stdout)
+print(document["planning_result"]["status"])
+```
+
+The JSON plan remains conceptual: neither IRIS nor a downstream consumer
+receives execution permission from this output.
 
 To enter local text chat with an already installed Ollama model, run:
 
