@@ -242,6 +242,38 @@ print(document["planning_result"]["status"])
 The JSON plan remains conceptual: neither IRIS nor a downstream consumer
 receives execution permission from this output.
 
+For a **registered strategy that declares context requirements**, a caller may
+submit one bounded JSON document through standard input with
+`iris planificar --estrategia ID --contexto-stdin --formato json`. The current
+production strategy `estudio` declares no requirements, so this command rejects
+`estudio` before reading stdin. It does not add a production strategy or change
+the existing commands. Inspect exact declared identities first with
+`planificar --requisitos ID --formato json`.
+
+The input contract is `planning_context_input` version `1.0`: the top-level
+object contains exactly `format_version` and `items`. Each item contains
+exactly `kind`, `key`, `scope` and `value`; scope contains exactly `kind` and
+`identifier`. For example, this synthetic test-only rule requirement could be
+supplied as:
+
+```json
+{"format_version":"1.0","items":[{"kind":"task","key":"topic","scope":{"kind":"global","identifier":null},"value":"Cinemática"}]}
+```
+
+Every item must match a declared requirement by kind, key and exact scope.
+Partial submissions are allowed. Input is strict UTF-8, at most 32768 bytes
+and 16 items. Values may be nonblank strings of at most 1024 Unicode code
+points, bounded integers, finite floats or booleans. Duplicate JSON properties,
+unknown requirements and other structures are rejected. The caller cannot
+choose request identities, evidence status or eligibility. Supplied values are
+marked as caller evidence with unknown epistemic status; presence does not
+verify truth or personalize the rule. IRIS builds an ephemeral ContextSnapshot
+through ContextEngine, evaluates Planning once and returns the existing WP078
+JSON result. The public output includes the snapshot ID but no context values
+or evidence contents. Caller errors exit 2; internal contract failures exit 1;
+both leave stdout empty and use bounded diagnostics. This route does not invoke
+Ollama, Memory, capabilities or execution.
+
 To enter local text chat with an already installed Ollama model, run:
 
 ```powershell

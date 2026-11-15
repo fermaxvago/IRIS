@@ -9,9 +9,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from time import monotonic
+from typing import BinaryIO
 from uuid import uuid4
 
 from iris.capabilities import CapabilityRuntime
+from iris.context import ContextEngine
 from iris.core.request import Request
 from iris.dispatch import CommandDispatcher, Dispatcher
 from iris.intelligence import (
@@ -66,6 +68,12 @@ from iris.planning import (
     PlanningRequest,
     PlanningResult,
     PlanningStatus,
+)
+from iris.planning.context_stdin import (
+    ContextInputError,
+    SubmittedContextItem,
+    build_context_snapshot,
+    read_context_input,
 )
 from iris.planning.deterministic import _missing_context_requirements, _objective_key
 from iris.planning.discovery_json import (
@@ -897,6 +905,8 @@ def _run_explicit_planning(
     manifest: StrategyManifest | None = None,
     selected: StrategyDescriptor | None = None,
     json_format: bool = False,
+    context_items: tuple[SubmittedContextItem, ...] | None = None,
+    context_engine: ContextEngine | None = None,
 ) -> None:
     """Build one traceable request, evaluate once, render, then stop."""
 
@@ -927,11 +937,29 @@ def _run_explicit_planning(
             scope=GoalScope(ScopeKind.TASK, user_request.request_id),
             provenance=GoalProvenance("request", user_request.request_id, None),
         )
+        context_snapshot = None
+        if context_items is not None:
+            if selected is None or not json_format:
+                raise ValueError("context submission requires JSON strategy selection")
+            context_snapshot = build_context_snapshot(
+                request_id=user_request.request_id,
+                items=context_items,
+                candidate_id_factory=new_id,
+                created_at=now(),
+                engine=context_engine
+                if context_engine is not None
+                else ContextEngine(),
+            )
+            if any(
+                item.candidate_id in {request_id, goal_id, planning_request_id}
+                for item in context_snapshot.items
+            ):
+                raise ValueError("candidate identity overlaps Planning identities")
         planning_request = PlanningRequest(
             planning_request_id=planning_request_id,
             goal=goal,
             created_at=now(),
-            context=None,
+            context=context_snapshot,
         )
         selected_planner: Planner = planner or DeterministicPlanner(
             (manifest or built_in_manifest()).rules, clock=now
@@ -982,6 +1010,8 @@ def entrypoint(
     planning_clock: Callable[[], datetime] | None = None,
     planning_id_factory: Callable[[], str] | None = None,
     planning_manifest: StrategyManifest | None = None,
+    planning_context_stream: BinaryIO | None = None,
+    planning_context_engine: ContextEngine | None = None,
 ) -> None:
     """Parse explicit commands while preserving bare legacy IRIS."""
 
@@ -1027,6 +1057,12 @@ def entrypoint(
     planning.add_argument(
         "--formato", action="append", choices=("json",), help="salida JSON 1.0"
     )
+    planning.add_argument(
+        "--contexto-stdin",
+        action="append_const",
+        const=True,
+        help="leer contexto JSON explícito para una estrategia que declare requisitos",
+    )
     parsed = parser.parse_args(arguments)
     if parsed.command == "planificar":
         if parsed.objetivo is not None and len(parsed.objetivo) != 1:
@@ -1040,6 +1076,11 @@ def entrypoint(
         if parsed.formato is not None:
             if len(parsed.formato) != 1:
                 parser.error("especifica --formato una sola vez")
+        if parsed.contexto_stdin is not None:
+            if len(parsed.contexto_stdin) != 1:
+                parser.error("especifica --contexto-stdin una sola vez")
+            if parsed.estrategia is None or parsed.formato is None:
+                parser.error("--contexto-stdin requiere --estrategia y --formato json")
         try:
             manifest = planning_manifest or built_in_manifest()
             manifest = StrategyManifest(manifest.entries)
@@ -1091,6 +1132,29 @@ def entrypoint(
             selected = manifest.resolve(parsed.estrategia[0])
             if selected is None:
                 parser.error("identificador de estrategia no registrado")
+        context_items = None
+        if parsed.contexto_stdin is not None:
+            if selected is None or not selected.rule.required_context:
+                parser.error("la estrategia no declara requisitos de contexto")
+            try:
+                requirements_json_document(manifest, selected.strategy_id)
+            except Exception as exc:
+                raise SystemExit(
+                    "Planificación no disponible: manifiesto inválido."
+                ) from exc
+            try:
+                context_items = read_context_input(
+                    planning_context_stream
+                    if planning_context_stream is not None
+                    else sys.stdin.buffer,
+                    selected,
+                )
+            except ContextInputError:
+                parser.error("documento de contexto inválido")
+            except Exception as exc:
+                raise SystemExit(
+                    "Planificación no disponible: lectura de contexto fallida."
+                ) from exc
         _run_explicit_planning(
             selected.rule.objective if selected is not None else parsed.objetivo[0],
             output_fn,
@@ -1100,6 +1164,8 @@ def entrypoint(
             manifest=manifest,
             selected=selected,
             json_format=parsed.formato is not None,
+            context_items=context_items,
+            context_engine=planning_context_engine,
         )
         return
     if parsed.command == "chat":
