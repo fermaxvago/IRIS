@@ -74,6 +74,12 @@ def encoded(*items: dict[str, object]) -> bytes:
     ).encode()
 
 
+def numeric_literal(token: str) -> bytes:
+    return encoded(item(A, "NUMERIC_TOKEN")).replace(
+        b'"NUMERIC_TOKEN"', token.encode("ascii")
+    )
+
+
 class RecordingPlanner:
     def __init__(self, rules: tuple[PlanningRule, ...]) -> None:
         self.delegate = DeterministicPlanner(rules, clock=lambda: NOW)
@@ -252,6 +258,56 @@ def test_value_boundaries_and_scalar_types() -> None:
         read_context_input(
             io.BytesIO(encoded(item(A, "\ud800"))), manifest().entries[0]
         )
+
+
+@pytest.mark.parametrize("token", ["1e-9999", "-1e-9999", "0.001e-9999"])
+def test_nonzero_float_underflow_is_rejected_without_planning(
+    token: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = numeric_literal(token)
+    with pytest.raises(ContextInputError):
+        read_context_input(io.BytesIO(source), manifest().entries[0])
+    output: list[str] = []
+    planner = RecordingPlanner(manifest().rules)
+    with pytest.raises(SystemExit) as error:
+        cli.entrypoint(
+            [
+                "planificar",
+                "--estrategia",
+                "sintetica",
+                "--contexto-stdin",
+                "--formato",
+                "json",
+            ],
+            planning_manifest=manifest(),
+            planning_context_stream=io.BytesIO(source),
+            planning_planner=planner,
+            output_fn=output.append,
+        )
+    assert error.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and output == [] and planner.calls == []
+    assert token not in captured.err
+
+
+@pytest.mark.parametrize("token", ["0e-9999", "-0e-9999", "5e-324"])
+def test_zero_and_representable_subnormal_survive_context_selection(token: str) -> None:
+    expected = float(token)
+    document, planner = run(numeric_literal(token))
+    assert document["planning_request"]["context_snapshot_id"] is not None
+    snapshot = planner.calls[0].context
+    assert snapshot is not None
+    selected = snapshot.items[0].value
+    assert type(selected) is float and selected.hex() == expected.hex()
+
+
+@pytest.mark.parametrize("value", ["  text  ", 42, True, False, 1.25])
+def test_supported_scalar_types_survive_context_selection(value: object) -> None:
+    _, planner = run(encoded(item(A, value)))
+    snapshot = planner.calls[0].context
+    assert snapshot is not None
+    selected = snapshot.items[0].value
+    assert type(selected) is type(value) and selected == value
 
 
 def test_byte_limit_and_bounded_reads() -> None:
@@ -541,6 +597,40 @@ def test_scalar_type_change_that_compares_equal_is_rejected() -> None:
     assert output == []
 
 
+@pytest.mark.parametrize("supplied, changed", [(-0.0, 0.0), (0.0, -0.0)])
+def test_context_engine_signed_zero_mutation_is_internal_failure(
+    supplied: float, changed: float, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class ZeroChangingEngine(ContextEngine):
+        def build(self, **kwargs: object) -> ContextSnapshot:
+            valid = super().build(**kwargs)
+            return replace(valid, items=(replace(valid.items[0], value=changed),))
+
+    output: list[str] = []
+    planner = RecordingPlanner(manifest().rules)
+    with pytest.raises(SystemExit) as error:
+        cli.entrypoint(
+            [
+                "planificar",
+                "--estrategia",
+                "sintetica",
+                "--contexto-stdin",
+                "--formato",
+                "json",
+            ],
+            planning_manifest=manifest(),
+            planning_context_stream=io.BytesIO(encoded(item(A, supplied))),
+            planning_context_engine=ZeroChangingEngine(),
+            planning_planner=planner,
+            output_fn=output.append,
+        )
+    assert isinstance(error.value.code, str)
+    assert "contrato de planificación inválido" in error.value.code
+    captured = capsys.readouterr()
+    assert captured.out == "" and output == [] and planner.calls == []
+    assert MARKER not in captured.err and MARKER not in str(error.value)
+
+
 @pytest.mark.parametrize("mutation", ["value", "scope", "evidence"])
 def test_engine_mutation_of_input_candidate_is_rejected(mutation: str) -> None:
     class MutatingEngine(ContextEngine):
@@ -671,6 +761,56 @@ def test_real_entrypoints_reject_production_no_requirement_strategy(
     )
     assert completed.returncode == 2
     assert completed.stdout == "" and MARKER not in completed.stderr
+
+
+def test_real_subprocess_accepts_synthetic_context_without_public_value(
+    tmp_path: Path,
+) -> None:
+    # The installed package entrypoint runs in a child process with an injected
+    # test-only manifest. Production registration remains unchanged.
+    harness = "\n".join(
+        (
+            "import sys",
+            "from importlib.metadata import distribution",
+            "from iris.memory import MemoryScope, ScopeKind",
+            "from iris.planning import PlanningContextRequirement, PlanningRule, PlanStep",
+            "from iris.planning.strategy_manifest import StrategyDescriptor, StrategyManifest",
+            "entrypoint = next(ep for ep in distribution('iris-personal-system').entry_points if ep.name == 'iris').load()",
+            "requirement = PlanningContextRequirement('task', 'topic', MemoryScope(ScopeKind.GLOBAL))",
+            "rule = PlanningRule('Synthetic objective', steps=(PlanStep('a', 'Identify topic.', 'Topic identified.'),), required_context=(requirement,))",
+            "manifest = StrategyManifest((StrategyDescriptor('sintetica', 'Test only', rule),))",
+            "entrypoint(sys.argv[1:], planning_manifest=manifest)",
+        )
+    )
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            harness,
+            "planificar",
+            "--estrategia",
+            "sintetica",
+            "--contexto-stdin",
+            "--formato",
+            "json",
+        ],
+        input=encoded(item(A)).decode("utf-8"),
+        text=True,
+        capture_output=True,
+        cwd=tmp_path,
+        env=env,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    document = json.loads(completed.stdout)
+    assert document["format_version"] == "1.0"
+    assert document["input"] == {"mode": "strategy_id", "strategy_id": "sintetica"}
+    assert document["planning_request"]["context_snapshot_id"] is not None
+    assert document["planning_result"]["status"] == "plan_created"
+    assert MARKER not in completed.stdout
 
 
 def test_no_runtime_authority_is_invoked(monkeypatch: pytest.MonkeyPatch) -> None:

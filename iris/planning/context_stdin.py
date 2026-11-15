@@ -8,6 +8,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from datetime import datetime
+from decimal import Decimal
 from typing import BinaryIO, cast
 
 from iris.context import (
@@ -72,6 +73,8 @@ def _float(token: str) -> float:
     value = float(token)
     if not math.isfinite(value):
         raise ContextInputError("nonfinite number")
+    if value == 0.0 and not Decimal(token).is_zero():
+        raise ContextInputError("floating-point underflow")
     return value
 
 
@@ -108,6 +111,14 @@ def _value(value: object) -> ContextValue:
     if type(value) is bool:
         return value
     raise ContextInputError("invalid context scalar value")
+
+
+def _same_scalar(left: ContextValue, right: ContextValue) -> bool:
+    if type(left) is not type(right):
+        return False
+    if type(left) is float:
+        return left.hex() == cast(float, right).hex()
+    return left == right
 
 
 def read_context_input(
@@ -239,7 +250,7 @@ def build_context_snapshot(
     if actual.keys() != expected.keys() or any(
         type(actual[key]) is not ContextItem
         or replace(actual[key]) != value
-        or type(actual[key].value) is not type(value.value)
+        or not _same_scalar(actual[key].value, value.value)
         or type(actual[key].scope) is not MemoryScope
         or replace(actual[key].scope) != value.scope
         or type(actual[key].evidence) is not ContextEvidence
