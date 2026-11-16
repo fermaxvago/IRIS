@@ -60,12 +60,18 @@ def test_production_catalog_and_requirements() -> None:
         "document_type": "strategy_catalog",
         "strategies": [
             {
-                "strategy_id": "estudio",
-                "description": built_in_manifest().entries[0].description,
-                "objective": STUDY_OBJECTIVE,
+                "strategy_id": entry.strategy_id,
+                "description": entry.description,
+                "objective": entry.rule.objective,
             }
+            for entry in built_in_manifest().entries
         ],
     }
+    assert [entry["strategy_id"] for entry in catalog["strategies"]] == [
+        "estudio",
+        "revision_compatibilidad",
+        "revision_seguridad",
+    ]
     assert run("--requisitos", "estudio") == {
         "format_version": "1.0",
         "document_type": "strategy_requirements",

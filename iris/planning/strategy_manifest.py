@@ -7,6 +7,10 @@ import unicodedata
 from dataclasses import dataclass
 
 from iris.planning import DeterministicPlanner, PlanningRule
+from iris.planning.review_strategies import (
+    compatibility_review_rule,
+    security_review_rule,
+)
 from iris.planning.study_strategy import study_session_rule
 
 _ID_PATTERN = re.compile(r"[a-z][a-z0-9_]*\Z")
@@ -86,6 +90,16 @@ def built_in_manifest() -> StrategyManifest:
                 "estudio",
                 "Preparación conceptual de una sesión individual de estudio.",
                 study_session_rule(),
+            ),
+            StrategyDescriptor(
+                "revision_compatibilidad",
+                "Preparación conceptual de una revisión manual de compatibilidad de IRIS.",
+                compatibility_review_rule(),
+            ),
+            StrategyDescriptor(
+                "revision_seguridad",
+                "Preparación conceptual de una revisión manual de seguridad de IRIS.",
+                security_review_rule(),
             ),
         )
     )
