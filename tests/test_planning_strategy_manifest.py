@@ -64,9 +64,11 @@ def test_discovery_lists_only_valid_registered_strategy_without_planning(
         cli, "PlanningRequest", lambda **_: pytest.fail("PlanningRequest constructed")
     )
     output = run("--listar", planner=planner)
-    assert len(output) == 1
+    assert len(output) == 3
     assert "estudio" in output[0] and STUDY_OBJECTIVE in output[0]
     assert "Preparación conceptual" in output[0]
+    assert "revision_compatibilidad" in output[1]
+    assert "revision_seguridad" in output[2]
     assert planner.calls == []
 
 
@@ -142,7 +144,8 @@ def test_manifest_rejects_invalid_identifiers(bad_id: str) -> None:
 
 def test_manifest_rejects_duplicate_ids_objectives_and_bad_descriptions() -> None:
     first = built_in_manifest().entries[0]
-    assert built_in_manifest().rules == (first.rule,)
+    assert built_in_manifest().rules[0] == first.rule
+    assert len(built_in_manifest().rules) == 3
     with pytest.raises(ValueError):
         StrategyManifest(())
     with pytest.raises(ValueError):

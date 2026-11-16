@@ -138,6 +138,8 @@ python -m iris planificar --objetivo "Preparar una sesión de estudio"
 # or: iris planificar --objetivo "Preparar una sesión de estudio"
 python -m iris planificar --listar
 python -m iris planificar --estrategia estudio
+python -m iris planificar --estrategia revision_compatibilidad
+python -m iris planificar --estrategia revision_seguridad
 python -m iris planificar --requisitos estudio
 python -m iris planificar --listar --formato json
 python -m iris planificar --requisitos estudio --formato json
@@ -145,17 +147,22 @@ python -m iris planificar --estrategia estudio --formato json
 python -m iris planificar --objetivo "Preparar una sesión de estudio" --formato json
 ```
 
-This explicit command has exactly one built-in strategy: a generic four-step
-study-session preparation template covering focus, materials, review and
-practice, and self-assessment. Its steps describe possible future human work;
+The production catalog contains exactly three built-in conceptual strategies:
+`estudio` prepares an individual study session; `revision_compatibilidad`
+structures preparation for a manual IRIS compatibility review; and
+`revision_seguridad` structures preparation for a manual IRIS security review.
+Each has four dependent steps. The two review strategies identify review
+surfaces, relevant invariants or authority restrictions, verification cases,
+and the evidence a human reviewer would need. Their steps describe possible
+future human work;
 IRIS executes none of them. An unregistered objective receives a truthful
 "no registered strategy" response, not a fabricated plan or a claim that the
 task is impossible. Matching ignores case and normalizes whitespace but does
 not infer synonyms. The command neither contacts Ollama nor retrieves personal
 context, files, assignments, or calendar details. It is not personalized
 academic planning, autonomous tutoring, scheduling, or general-purpose
-planning. WP075's single authentic built-in strategy resolves the first CLI
-planning acceptance gap; it does not authorize an unreviewed strategy catalog.
+planning. WP075 introduced the original study template; WP081 adds the two
+bounded manual-review preparation templates.
 `--listar` shows the registered strategy ID, description and canonical
 objective. `--estrategia estudio` selects that exact ID and derives the Goal
 objective from its registered rule; the originating Request records the literal
@@ -163,7 +170,7 @@ ID rather than pretending the user typed the objective. These modes remain
 explicit and mutually exclusive with `--objetivo`. All results are conceptual;
 selection does not execute steps, use a model, or create a PlanRun.
 `--requisitos` displays the selected registered rule's context requirements
-without invoking Planning. The current `estudio` rule requires none. When a
+without invoking Planning. All three production rules require no context. When a
 Planning result lacks required context, IRIS lists the missing kind, key and
 scope without showing context values. Presence of a required item does not
 establish that its value is true. This command does not accept context values
@@ -179,7 +186,7 @@ For `--requisitos`, it emits one `strategy_requirements` document with exactly
 `format_version`, `document_type`, `strategy_id`, `objective` and
 `required_context`. Each declared requirement contains `kind`, `key` and
 `scope` (`kind`, `identifier`) in canonical order. The production `estudio`
-strategy declares no requirements. A declared requirement is not missing
+strategies declare no requirements. A declared requirement is not missing
 context from an evaluated request, verified information, or permission to
 acquire context. The pair (`document_type`, `format_version`) identifies each
 independent public metadata contract; both begin at `1.0`. Changes to their
