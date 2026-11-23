@@ -165,7 +165,11 @@ def test_synthetic_disclosure_preserves_kind_key_scope_and_order() -> None:
         "- kind=task, key=topic, scope=global",
         "- kind=task, key=materials, scope=task:task-1",
     ]
-    assert [entry.strategy_id for entry in built_in_manifest().entries] == ["estudio"]
+    assert [entry.strategy_id for entry in built_in_manifest().entries] == [
+        "estudio",
+        "revision_compatibilidad",
+        "revision_seguridad",
+    ]
 
 
 @pytest.mark.parametrize(
