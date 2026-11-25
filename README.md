@@ -62,12 +62,25 @@ IRIS 0.1 currently provides:
 - typed architectural contracts for future skills and actions;
 - automated tests for the existing behavior and contracts.
 
+These components have different entry points and evidence:
+
+| Capability | Current access | Evidence and boundary |
+| --- | --- | --- |
+| System status | `estado` in the terminal; consent-gated CPU/RAM consultation and comparison in `chat` | Production CLI paths and controlled tests; a reading is not permission to disclose it to a model. |
+| Local conversation | `chat --model` or `chat --select`, with an installed Ollama model | Production CLI path and mocked provider tests; physical inference requires a running local service and compatible model. |
+| Conceptual Planning | `planificar` with an explicit objective or registered strategy | Production CLI and installed-entry tests; three built-in strategies produce proposed steps, not completed work. |
+| PlanRun control and execution composition | Internal caller-driven Python interfaces | Source and controlled tests establish bounded decisions and single-step mechanisms; the conversational CLI does not create PlanRuns or execute plans. |
+| Memory and Context | Internal services and explicit caller inputs | Source and controlled tests establish their contracts; chat history and submitted Planning context are not persistent Memory. |
+
 IRIS does **not** bundle a model or connect one automatically. It also does not
 include retry or fallback after execution failure, an iterative agent loop,
-autonomous planning/execution, a PlanRun Controller, authorization, semantic
-retrieval, voice, vision, or complex system actions. Ollama is an optional,
-replaceable backend; it is not IRIS or IRIS's identity. The intelligence router
-is deterministic and specialized; it is not an LLM-based Brain Router.
+autonomous planning/execution, a general authorization system, semantic
+retrieval, voice, vision, or unrestricted system actions. A deterministic
+`PlanRunController` exists as an internal one-decision component; it does not
+create plans, grant execution authority, or run an autonomous workflow. Ollama
+is an optional, replaceable backend; it is not IRIS or IRIS's identity. The
+intelligence router is deterministic and specialized; it is not an LLM-based
+Brain Router.
 
 ## Platform and product direction
 
@@ -173,9 +186,9 @@ selection does not execute steps, use a model, or create a PlanRun.
 without invoking Planning. All three production rules require no context. When a
 Planning result lacks required context, IRIS lists the missing kind, key and
 scope without showing context values. Presence of a required item does not
-establish that its value is true. This command does not accept context values
-through a CLI option or retrieve them automatically; plans remain conceptual
-and non-executable.
+establish that its value is true. Requirement disclosure does not accept or
+retrieve context values; plans remain conceptual and non-executable. A separate,
+explicit stdin path is described below for rules that declare requirements.
 
 `--formato json` is available with all four Planning modes. Without this
 option, their human-readable output is unchanged. For `--listar`, it emits one
@@ -185,7 +198,7 @@ option, their human-readable output is unchanged. For `--listar`, it emits one
 For `--requisitos`, it emits one `strategy_requirements` document with exactly
 `format_version`, `document_type`, `strategy_id`, `objective` and
 `required_context`. Each declared requirement contains `kind`, `key` and
-`scope` (`kind`, `identifier`) in canonical order. The production `estudio`
+`scope` (`kind`, `identifier`) in canonical order. All three production
 strategies declare no requirements. A declared requirement is not missing
 context from an evaluated request, verified information, or permission to
 acquire context. The pair (`document_type`, `format_version`) identifies each
@@ -251,9 +264,11 @@ receives execution permission from this output.
 
 For a **registered strategy that declares context requirements**, a caller may
 submit one bounded JSON document through standard input with
-`iris planificar --estrategia ID --contexto-stdin --formato json`. The current
-production strategy `estudio` declares no requirements, so this command rejects
-`estudio` before reading stdin. It does not add a production strategy or change
+`iris planificar --estrategia ID --contexto-stdin --formato json`. All three
+current production strategies declare no requirements, so this command rejects
+each of them before reading stdin. Its successful input path is demonstrated
+with synthetic strategies in controlled tests; it is not a current production
+personalization route. It does not add a production strategy or change
 the existing commands. Inspect exact declared identities first with
 `planificar --requisitos ID --formato json`.
 
@@ -532,8 +547,10 @@ IntelligenceRequest → IntelligenceRuntime → ProviderRegistry
 correlation identity, and extensible metadata. The runtime receives an explicit
 provider identifier, verifies that provider/model pairing, performs inference
 through a structural provider contract, and validates the returned identity.
-It does not choose a provider or model, fall back automatically, call tools, or
-participate in the CLI request path. Providers are registered explicitly per
+It does not choose a provider or model, fall back automatically, or call tools.
+The explicit `chat` CLI path uses this runtime through `ConversationSession`;
+the legacy `estado` command uses its separate capability path. Providers are
+registered explicitly per
 registry instance; there is no global registry or discovery mechanism.
 Intelligence providers are not Tools, and `IntelligenceRuntime` does not execute
 capabilities; orchestration between those subsystems remains future work.
@@ -576,8 +593,9 @@ orchestration concerns.
 Locality is represented only as execution location. It does not assert trust,
 privacy, authorization, or data sensitivity. Those are future security and
 resource-management boundaries. The router also does not decide between a
-model, tool, action, or memory; a future Orchestrator will create individual
-`IntelligenceNeed` values when intelligence is appropriate. Multi-resource
+model, tool, action, or memory. The existing internal Orchestrator accepts an
+explicit `IntelligenceNeed` in a `HandlingNeed`; it does not derive one from
+ordinary chat or grant tool authority. Multi-resource
 plans, adaptive/learned routing, benchmarks, and operational telemetry are not
 implemented.
 
@@ -738,10 +756,12 @@ this does not authorize concurrent execution.
 
 The provider-independent `Planner` protocol returns one typed `PlanningResult`:
 `PLAN_CREATED`, `NO_PLAN_REQUIRED`, `INSUFFICIENT_CONTEXT`, or
-`UNSATISFIABLE`. The initial `DeterministicPlanner` uses caller-supplied exact
-objective rules. It consumes only its `PlanningRequest` and optional explicit
-`ContextSnapshot`; it performs no Memory lookup, provider invocation, tool
-discovery, orchestration or execution. Unknown objectives are unsatisfiable only
+`UNSATISFIABLE`. `DeterministicPlanner` uses explicitly configured rules and
+case-insensitive, whitespace-normalized objective matching. The production
+CLI configures it from the three registered built-in strategies. It consumes
+only its `PlanningRequest` and optional explicit `ContextSnapshot`; it performs
+no Memory lookup, provider invocation, tool discovery, orchestration or
+execution. Unknown objectives are unsatisfiable only
 under that configured rule set, not claims of real-world impossibility.
 
 Goal is not Plan. Plan is not PlanRun, authorization or execution. Planning
@@ -779,9 +799,10 @@ not proof that the Goal is satisfied. Cannot-advance means no step is READY or
 ACTIVE under the current snapshot; it is not Goal failure and does not trigger
 retry, replanning, abandonment, or execution.
 
-WP012 contains no Controller, next-step selection, Execution bridge, outcome
-evaluator, attempts, retry, pause/resume, checkpoint persistence,
-authorization, automatic Memory/Context mutation, agent loop, or durable
+At the WP012 milestone, this module contained no Controller, next-step
+selection, Execution bridge, outcome evaluator, attempts, retry, pause/resume,
+checkpoint persistence, authorization, automatic Memory/Context mutation,
+agent loop, or durable
 workflow. Applying one update produces one new state snapshot and stops.
 
 ## PlanRun control-decision foundation
@@ -817,6 +838,11 @@ Selection is not activation, authorization, execution, or step success.
 Intelligence or Memory, modify Context, retry, replan, checkpoint, schedule, or
 enter a loop. `RUN_STRUCTURALLY_COMPLETE` is not Goal satisfaction, and
 `RUN_CANNOT_ADVANCE` is not Goal failure.
+
+This controller is available to explicit internal callers. The current
+`planificar` and `chat` CLI paths do not construct a PlanRun or call `decide()`;
+the controller cannot independently turn a conceptual Planning result into an
+authorized execution request.
 
 ## PlanStep handling-preparation foundation
 
